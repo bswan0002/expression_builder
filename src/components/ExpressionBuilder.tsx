@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { EditorState, Extension } from "@codemirror/state";
 import { EditorView, keymap, highlightActiveLine } from "@codemirror/view";
+import { startCompletion } from "@codemirror/autocomplete";
 import { defaultKeymap } from "@codemirror/commands";
 import { Plus, Minus, X, Divide, RotateCcw } from "lucide-react";
 import {
@@ -113,6 +114,20 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
     view.dispatch(transaction);
   };
 
+  const insertCurlyBraces = () => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const doc = view.state.doc;
+    const transaction = view.state.update({
+      changes: { from: doc.length, insert: "{}" },
+      selection: { anchor: doc.length + 1 },
+    });
+    view.focus();
+    view.dispatch(transaction);
+    startCompletion(view);
+  };
+
   const clearExpression = () => {
     const view = viewRef.current;
     if (!view) return;
@@ -157,6 +172,12 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
           ( )
         </button>
         <button
+          onClick={insertCurlyBraces}
+          className="p-2 rounded bg-blue-100 hover:bg-blue-200"
+        >
+          {"{ }"}
+        </button>
+        <button
           onClick={clearExpression}
           className="p-2 rounded bg-red-100 hover:bg-red-200 ml-auto"
         >
@@ -164,7 +185,8 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
         </button>
       </div>
       <p className="mb-4">
-        Use <code>{"`{}`"} to insert metrics</code>
+        Use <code className="bg-gray-100 px-2 py-1 rounded">{"{}"}</code> to
+        insert metrics
       </p>
       <div
         ref={editorRef}
