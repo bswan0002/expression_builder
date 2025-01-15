@@ -1,9 +1,14 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { EditorState, Extension } from "@codemirror/state";
 import { EditorView, keymap, highlightActiveLine } from "@codemirror/view";
 import { defaultKeymap } from "@codemirror/commands";
 import { Plus, Minus, X, Divide, RotateCcw } from "lucide-react";
-import { ExpressionBuilderProps } from "../types/expression";
+import {
+  ExpressionBuilderProps,
+  Metric,
+  DateRange,
+  MetricWithRange,
+} from "../types/expression";
 import { evaluateExpression } from "../utils/expressionEvaluator";
 import { arithmeticLanguage } from "../language/arithmetic";
 
@@ -14,6 +19,39 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView>();
+  const [usedMetrics, setUsedMetrics] = useState<MetricWithRange[]>([]);
+
+  // Function to extract metrics from expression
+  const extractMetrics = (expression: string): MetricWithRange[] => {
+    const metricRegex = /\{([^}]+)\}/g;
+    const matches = [...expression.matchAll(metricRegex)];
+    const foundMetrics = matches
+      .map((match) => metrics.find((m) => m.name === match[1]))
+      .filter((m): m is Metric => m !== undefined);
+
+    return foundMetrics.map((metric) => ({
+      ...metric,
+      dateRange: "last_24h", // default date range
+    }));
+  };
+
+  // Update used metrics when the expression changes
+  const handleExpressionChange = (
+    value: string,
+    isValid: boolean,
+    result?: number
+  ) => {
+    const newUsedMetrics = extractMetrics(value);
+    setUsedMetrics(newUsedMetrics);
+    onChange?.(value, isValid, result);
+  };
+
+  // Handle date range change for a metric
+  const handleDateRangeChange = (metricName: string, dateRange: DateRange) => {
+    setUsedMetrics((prev) =>
+      prev.map((m) => (m.name === metricName ? { ...m, dateRange } : m))
+    );
+  };
 
   // Set up CodeMirror extensions
   const extensions: Extension[] = [
@@ -25,9 +63,9 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
         const value = update.state.doc.toString();
         try {
           const result = evaluateExpression(value, metrics);
-          onChange?.(value, true, result);
+          handleExpressionChange(value, true, result);
         } catch (error) {
-          onChange?.(value, false);
+          handleExpressionChange(value, false);
         }
       }
     }),
@@ -132,6 +170,36 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
         ref={editorRef}
         className="border rounded p-2 min-h-[100px] font-mono text-sm"
       />
+      {usedMetrics.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-lg font-semibold mb-2">Used Metrics</h3>
+          <div className="space-y-2">
+            {usedMetrics.map((metric) => (
+              <div
+                key={metric.name}
+                className="flex items-center justify-between p-2 bg-gray-50 rounded"
+              >
+                <span className="font-mono">{metric.name}</span>
+                <select
+                  value={metric.dateRange}
+                  onChange={(e) =>
+                    handleDateRangeChange(
+                      metric.name,
+                      e.target.value as DateRange
+                    )
+                  }
+                  className="ml-4 p-1 border rounded"
+                >
+                  <option value="last_24h">Last 24 Hours</option>
+                  <option value="last_7d">Last 7 Days</option>
+                  <option value="last_30d">Last 30 Days</option>
+                  <option value="last_90d">Last 90 Days</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
