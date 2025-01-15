@@ -126,7 +126,7 @@ const ExpressionBuilder: React.FC<ExpressionBuilderProps> = ({
         </button>
       </div>
       <p className="mb-4">
-        Use <code>{"`{}`"} to insert expressions</code>
+        Use <code>{"`{}`"} to insert metrics</code>
       </p>
       <div
         ref={editorRef}
