@@ -24,6 +24,13 @@ export const evaluateExpression = (expression: string, metrics: Metric[] = []): 
       throw new ExpressionError('Invalid characters in expression');
     }
 
+    // Check for invalid operator placement
+    if (/^[\s]*[+*/]/.test(processedExpression) ||              // operators at start (except minus)
+        /[\s]*[+\-*/][\s]*[+\-*/]/.test(processedExpression) || // consecutive operators
+        /[+\-*/][\s]*$/.test(processedExpression)) {            // operators at end
+      throw new ExpressionError('Invalid operator placement');
+    }
+
     // Use Function constructor to evaluate the expression
     // This is safe because we've already validated the input
     const result = new Function(`return ${processedExpression}`)();
