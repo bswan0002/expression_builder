@@ -22,3 +22,25 @@
   background-color: rgba(59, 130, 246, 0.2);
   border-radius: 2px;
 }
+
+/* CodeMirror linter styles */
+.cm-diagnosticText {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+}
+
+.cm-diagnostic {
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.cm-diagnostic-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+}
+
+.cm-lintRange-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-bottom: 1px wavy #ef4444;
+}
