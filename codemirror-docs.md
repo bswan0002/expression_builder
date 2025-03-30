@@ -1,6019 +1,4833 @@
+CodeMirror Reference Manual
+
+- [state](#state)
+- [view](#view)
+- [language](#language)
+- [commands](#commands)
+- [search](#search)
+- [autocomplete](#autocomplete)
+- [lint](#lint)
+- [collab](#collab)
+- [language-data](#language-data)
+- [codemirror](#codemirror)
+
 # Reference Manual
 
-CodeMirror is published as a set of NPM packages under
-the
+CodeMirror is published as a set of NPM packages under the `@codemirror` scope. The core packages are listed in this reference guide.
 
-`@codemirror`scope. The core packages are listed in
-this reference guide.
+Each package exposes [ECMAScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) and [CommonJS](https://flaviocopes.com/commonjs/) modules. You'll have to use some kind of [bundler](https://www.freecodecamp.org/news/javascript-modules-part-2-module-bundling-5020383cf306/) or [loader](https://github.com/marijnh/esmoduleserve) to run them in the browser.
 
-Each package exposes
-
-ECMAScript and
-
-CommonJS modules.
-You'll have to use some kind of
-
-bundler or
-
-loader to
-run them in the browser.
-
-The most important modules
-are
-
-`state`, which contains the data
-structures that model the editor state,
-and
-
-`view`, which provides the UI
-component for an editor.
+The most important modules are [`state`](#state), which contains the data structures that model the editor state, and [`view`](#view), which provides the UI component for an editor.
 
 A minimal editor might look like this:
 
-import { EditorView , keymap } from "@codemirror/view" import { defaultKeymap } from "@codemirror/commands" let myView = new EditorView ( { doc : "hello" , extensions : [ keymap . of ( defaultKeymap ) ], parent : document . body } ) But such an editor is going to be rather primitive. To get
-functionality
-like
+    import {EditorView, keymap} from "@codemirror/view"
+    import {defaultKeymap} from "@codemirror/commands"
 
-highlighting ,
-a
+    let myView = new EditorView({
+      doc: "hello",
+      extensions: [keymap.of(defaultKeymap)],
+      parent: document.body
+    })
 
-line number gutter , or
-an
+But such an editor is going to be rather primitive. To get functionality like [highlighting](#language.defaultHighlightStyle), a [line number gutter](#view.lineNumbers), or an [undo history](#h_undo_history), you need to [add](#state.EditorStateConfig.extensions) more extensions to your editor.
 
-undo history , you need
-to
+To quickly get started, the [codemirror](#codemirror) package provides a bundle of extensions to set up a functioning editor.
 
-add more
-extensions to your editor.
+## [@codemirror/state](#state)
 
-To quickly get started, the
+In its most basic form, an editor's state is made up of a current [document](#state.EditorState.doc) and a [selection](#state.EditorState.selection). Because there are a lot of extra pieces that an editor might need to keep in its state (such as an [undo history](#commands.history) or [syntax tree](#language.syntaxTree)), it is possible for extensions to add additional [fields](#state.StateField) to the state object.
 
-codemirror package provides a bundle of extensions to set up a functioning
-editor.
+#### `interface` [EditorStateConfig](#state.EditorStateConfig)
 
-@codemirror/ state In its most basic form, an editor's state is made up of a current
+Options passed when [creating](#state.EditorState%5Ecreate) an editor state.
 
-document and a
+`**[doc](#state.EditorStateConfig.doc)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [Text](#state.Text)`
 
-selection . Because there are a
-lot of extra pieces that an editor might need to keep in its state
-(such as an
+The initial document. Defaults to an empty document. Can be provided either as a plain string (which will be split into lines according to the value of the [`lineSeparator` facet](#state.EditorState%5ElineSeparator)), or an instance of the [`Text`](#state.Text) class (which is what the state will use to represent the document).
 
-undo history or
+`**[selection](#state.EditorStateConfig.selection)**⁠?: [EditorSelection](#state.EditorSelection) | {anchor: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), head⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-syntax
-tree ), it is possible for extensions to add
-additional
+The starting selection. Defaults to a cursor at the very start of the document.
 
-fields to the state object.
+`**[extensions](#state.EditorStateConfig.extensions)**⁠?: [Extension](#state.Extension)`
 
-interface EditorStateConfig Options passed when
+[Extension(s)](#state.Extension) to associate with this state.
 
-creating an
-editor state.
+#### `class` [EditorState](#state.EditorState)
 
-doc `⁠?:`string `|`Text The initial document. Defaults to an empty document. Can be
-provided either as a plain string (which will be split into
-lines according to the value of the
+The editor state class is a persistent (immutable) data structure. To update a state, you [create](#state.EditorState.update) a [transaction](#state.Transaction), which produces a _new_ state instance, without modifying the original object.
 
-`lineSeparator`facet ), or an instance of
-the
+As such, _never_ mutate properties of a state directly. That'll just break things.
 
-`Text`class (which is what the state will use
-to represent the document).
+`**[doc](#state.EditorState.doc)**: [Text](#state.Text)`
 
-selection `⁠?:`EditorSelection `| {`anchor `:`number `,`head `⁠?:`number `}`The starting selection. Defaults to a cursor at the very start
-of the document.
+The current document.
 
-extensions `⁠?:`Extension Extension(s) to associate with this state.
+`**[selection](#state.EditorState.selection)**: [EditorSelection](#state.EditorSelection)`
 
-class EditorState The editor state class is a persistent (immutable) data structure.
-To update a state, you
+The current selection.
 
-create a
+`**[field](#state.EditorState.field)**<[T](#state.EditorState.field^T)>([field](#state.EditorState.field^field): [StateField](#state.StateField)<[T](#state.EditorState.field^T)>) → [T](#state.EditorState.field^T)`
 
-transaction , which produces a
+`**[field](#state.EditorState.field)**<[T](#state.EditorState.field^T)>([field](#state.EditorState.field^field): [StateField](#state.StateField)<[T](#state.EditorState.field^T)>, [require](#state.EditorState.field^require): [false](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [T](#state.EditorState.field^T) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-new state
-instance, without modifying the original object.
+Retrieve the value of a [state field](#state.StateField). Throws an error when the state doesn't have that field, unless you pass `false` as second parameter.
 
-As such,
+`**[update](#state.EditorState.update)**(...[specs](#state.EditorState.update^specs): readonly [TransactionSpec](#state.TransactionSpec)[]) → [Transaction](#state.Transaction)`
 
-never mutate properties of a state directly. That'll
-just break things.
+Create a [transaction](#state.Transaction) that updates this state. Any number of [transaction specs](#state.TransactionSpec) can be passed. Unless [`sequential`](#state.TransactionSpec.sequential) is set, the [changes](#state.TransactionSpec.changes) (if any) of each spec are assumed to start in the _current_ document (not the document produced by previous specs), and its [selection](#state.TransactionSpec.selection) and [effects](#state.TransactionSpec.effects) are assumed to refer to the document created by its _own_ changes. The resulting transaction contains the combined effect of all the different specs. For [selection](#state.TransactionSpec.selection), later specs take precedence over earlier ones.
 
-doc `:`Text The current document.
+`**[replaceSelection](#state.EditorState.replaceSelection)**([text](#state.EditorState.replaceSelection^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [Text](#state.Text)) → [TransactionSpec](#state.TransactionSpec)`
 
-selection `:`EditorSelection The current selection.
+Create a [transaction spec](#state.TransactionSpec) that replaces every selection range with the given content.
 
-field `<`T `>(`field `:`StateField `<`T `>) →`T field `<`T `>(`field `:`StateField `<`T `>,`require `:`false `) →`T `|`undefined Retrieve the value of a
+`**[changeByRange](#state.EditorState.changeByRange)**(  [f](#state.EditorState.changeByRange^f): fn([range](#state.EditorState.changeByRange^f^range): [SelectionRange](#state.SelectionRange)) → {  range: [SelectionRange](#state.SelectionRange),  changes⁠?: [ChangeSpec](#state.ChangeSpec),  effects⁠?: [StateEffect](#state.StateEffect)<any> | readonly [StateEffect](#state.StateEffect)<any>[]  }  ) → {  changes: [ChangeSet](#state.ChangeSet),  selection: [EditorSelection](#state.EditorSelection),  effects: readonly [StateEffect](#state.StateEffect)<any>[]  }`
 
-state field . Throws
-an error when the state doesn't have that field, unless you pass
+Create a set of changes and a new selection by running the given function for each range in the active selection. The function can return an optional set of changes (in the coordinate space of the start document), plus an updated range (in the coordinate space of the document produced by the call's own changes). This method will merge all the changes and ranges into a single changeset and selection, and return it as a [transaction spec](#state.TransactionSpec), which can be passed to [`update`](#state.EditorState.update).
 
-`false`as second parameter.
+`**[changes](#state.EditorState.changes)**([spec](#state.EditorState.changes^spec)⁠?: [ChangeSpec](#state.ChangeSpec) = []) → [ChangeSet](#state.ChangeSet)`
 
-update `(...`specs `:`readonly TransactionSpec `[]) →`Transaction Create a
+Create a [change set](#state.ChangeSet) from the given change description, taking the state's document length and line separator into account.
 
-transaction that updates this
-state. Any number of
+`**[toText](#state.EditorState.toText)**([string](#state.EditorState.toText^string): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [Text](#state.Text)`
 
-transaction specs can be passed. Unless
+Using the state's [line separator](#state.EditorState%5ElineSeparator), create a [`Text`](#state.Text) instance from the given string.
 
-`sequential`is set, the
+`**[sliceDoc](#state.EditorState.sliceDoc)**([from](#state.EditorState.sliceDoc^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0, [to](#state.EditorState.sliceDoc^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = this.doc.length) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-changes (if any) of each spec
-are assumed to start in the
+Return the given range of the document as a string.
 
-current document (not the document
-produced by previous specs), and its
+`**[facet](#state.EditorState.facet)**<[Output](#state.EditorState.facet^Output)>([facet](#state.EditorState.facet^facet): [FacetReader](#state.FacetReader)<[Output](#state.EditorState.facet^Output)>) → [Output](#state.EditorState.facet^Output)`
 
-selection and
+Get the value of a state [facet](#state.Facet).
 
-effects are assumed to refer
-to the document created by its
+`**[toJSON](#state.EditorState.toJSON)**([fields](#state.EditorState.toJSON^fields)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[StateField](#state.StateField)<any>>) → any`
 
-own changes. The resulting
-transaction contains the combined effect of all the different
-specs. For
+Convert this state to a JSON-serializable object. When custom fields should be serialized, you can pass them in as an object mapping property names (in the resulting object, which should not use `doc` or `selection`) to fields.
 
-selection , later
-specs take precedence over earlier ones.
+`**[tabSize](#state.EditorState.tabSize)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-replaceSelection `(`text `:`string `|`Text `) →`TransactionSpec Create a
+The size (in columns) of a tab in the document, determined by the [`tabSize`](#state.EditorState%5EtabSize) facet.
 
-transaction spec that
-replaces every selection range with the given content.
+`**[lineBreak](#state.EditorState.lineBreak)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-changeByRange `(`f : fn ( range : SelectionRange ) → { range : SelectionRange , changes ⁠?: ChangeSpec , effects ⁠?: StateEffect < any > | readonly StateEffect < any >[] } `) → {`changes : ChangeSet , selection : EditorSelection , effects : readonly StateEffect < any >[] `}`Create a set of changes and a new selection by running the given
-function for each range in the active selection. The function
-can return an optional set of changes (in the coordinate space
-of the start document), plus an updated range (in the coordinate
-space of the document produced by the call's own changes). This
-method will merge all the changes and ranges into a single
-changeset and selection, and return it as a
+Get the proper [line-break](#state.EditorState%5ElineSeparator) string for this state.
 
-transaction
-spec , which can be passed to
+`**[readOnly](#state.EditorState.readOnly)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`update`.
+Returns true when the editor is [configured](#state.EditorState%5EreadOnly) to be read-only.
 
-changes `(`spec `⁠?:`ChangeSpec = [] `) →`ChangeSet Create a
+`**[phrase](#state.EditorState.phrase)**([phrase](#state.EditorState.phrase^phrase): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), ...[insert](#state.EditorState.phrase^insert): any[]) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-change set from the given change
-description, taking the state's document length and line
-separator into account.
+Look up a translation for the given phrase (via the [`phrases`](#state.EditorState%5Ephrases) facet), or return the original string if no translation is found.
 
-toText `(`string `:`string `) →`Text Using the state's
+If additional arguments are passed, they will be inserted in place of markers like `$1` (for the first value) and `$2`, etc. A single `$` is equivalent to `$1`, and `$$` will produce a literal dollar sign.
 
-line
-separator , create a
+`**[languageDataAt](#state.EditorState.languageDataAt)**<[T](#state.EditorState.languageDataAt^T)>([name](#state.EditorState.languageDataAt^name): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [pos](#state.EditorState.languageDataAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [side](#state.EditorState.languageDataAt^side)⁠?: -1 | 0 | 1 = -1) → readonly [T](#state.EditorState.languageDataAt^T)[]`
 
-`Text`instance from the given string.
-
-sliceDoc `(`from `⁠?:`number = 0 `,`to `⁠?:`number = this.doc.length `) →`string Return the given range of the document as a string.
-
-facet `<`Output `>(`facet `:`FacetReader `<`Output `>) →`Output Get the value of a state
-
-facet .
-
-toJSON `(`fields `⁠?:`Object `<`StateField `<`any `>>) →`any Convert this state to a JSON-serializable object. When custom
-fields should be serialized, you can pass them in as an object
-mapping property names (in the resulting object, which should
-not use
-
-`doc`or
-
-`selection`) to fields.
-
-tabSize `:`number The size (in columns) of a tab in the document, determined by
-the
-
-`tabSize`facet.
-
-lineBreak `:`string Get the proper
-
-line-break string for this state.
-
-readOnly `:`boolean Returns true when the editor is
-
-configured to be read-only.
-
-phrase `(`phrase `:`string `, ...`insert `:`any `[]) →`string Look up a translation for the given phrase (via the
-
-`phrases`facet), or return the
-original string if no translation is found.
-
-If additional arguments are passed, they will be inserted in
-place of markers like
-
-`$1`(for the first value) and
-
-`$2`, etc.
-A single
-
-`$`is equivalent to
-
-`$1`, and
-
-`$$`will produce a
-literal dollar sign.
-
-languageDataAt `<`T `>(`name `:`string `,`pos `:`number `,`side `⁠?:`-1 `|`0 `|`1 = -1 `) →`readonly T `[]`Find the values for a given language data field, provided by the
-the
-
-`languageData`facet.
+Find the values for a given language data field, provided by the the [`languageData`](#state.EditorState%5ElanguageData) facet.
 
 Examples of language data fields are...
 
-`"commentTokens"`- for specifying
-comment syntax.
-`"autocomplete"`- for providing language-specific completion sources.
-`"wordChars"`- for adding
-characters that should be considered part of words in this
-language.
-`"closeBrackets"`- controls
-bracket closing behavior.
-charCategorizer `(`at `:`number `) →`fn `(`char `:`string `) →`CharCategory Return a function that can categorize strings (expected to
-represent a single
+- [`"commentTokens"`](#commands.CommentTokens) for specifying comment syntax.
+- [`"autocomplete"`](#autocomplete.autocompletion%5Econfig.override) for providing language-specific completion sources.
+- [`"wordChars"`](#state.EditorState.charCategorizer) for adding characters that should be considered part of words in this language.
+- [`"closeBrackets"`](#autocomplete.CloseBracketConfig) controls bracket closing behavior.
 
-grapheme cluster )
-into one of:
+`**[charCategorizer](#state.EditorState.charCategorizer)**([at](#state.EditorState.charCategorizer^at): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → fn([char](#state.EditorState.charCategorizer^returns^char): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [CharCategory](#state.CharCategory)`
 
-- Word (contains an alphanumeric character or a character
-explicitly listed in the local language's
-`"wordChars"`- language data, which should be a string)
+Return a function that can categorize strings (expected to represent a single [grapheme cluster](#state.findClusterBreak)) into one of:
+
+- Word (contains an alphanumeric character or a character explicitly listed in the local language's `"wordChars"` language data, which should be a string)
 - Space (contains only whitespace)
 - Other (anything else)
-wordAt `(`pos `:`number `) →`SelectionRange `|`null Find the word at the given position, meaning the range
-containing all
 
-word characters
-around it. If no word characters are adjacent to the position,
-this returns null.
+`**[wordAt](#state.EditorState.wordAt)**([pos](#state.EditorState.wordAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [SelectionRange](#state.SelectionRange) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-static fromJSON `(`json : any , config ⁠?: EditorStateConfig = {} , fields ⁠?: Object < StateField < any >> `) →`EditorState Deserialize a state from its JSON representation. When custom
-fields should be deserialized, pass the same object you passed
-to
+Find the word at the given position, meaning the range containing all [word](#state.CharCategory.Word) characters around it. If no word characters are adjacent to the position, this returns null.
 
-`toJSON`when serializing as
-third argument.
+`static **[fromJSON](#state.EditorState^fromJSON)**(  [json](#state.EditorState^fromJSON^json): any,  [config](#state.EditorState^fromJSON^config)⁠?: [EditorStateConfig](#state.EditorStateConfig) = {},  [fields](#state.EditorState^fromJSON^fields)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[StateField](#state.StateField)<any>>  ) → [EditorState](#state.EditorState)`
 
-static create `(`config `⁠?:`EditorStateConfig = {} `) →`EditorState Create a new state. You'll usually only need this when
-initializing an editor—updated states are created by applying
-transactions.
+Deserialize a state from its JSON representation. When custom fields should be deserialized, pass the same object you passed to [`toJSON`](#state.EditorState.toJSON) when serializing as third argument.
 
-static allowMultipleSelections `:`Facet `<`boolean `,`boolean `>`A facet that, when enabled, causes the editor to allow multiple
-ranges to be selected. Be careful though, because by default the
-editor relies on the native DOM selection, which cannot handle
-multiple selections. An extension like
+`static **[create](#state.EditorState^create)**([config](#state.EditorState^create^config)⁠?: [EditorStateConfig](#state.EditorStateConfig) = {}) → [EditorState](#state.EditorState)`
 
-`drawSelection`can be used to make
-secondary selections visible to the user.
+Create a new state. You'll usually only need this when initializing an editor—updated states are created by applying transactions.
 
-static tabSize `:`Facet `<`number `,`number `>`Configures the tab size to use in this state. The first
-(highest-precedence) value of the facet is used. If no value is
-given, this defaults to 4.
+`static **[allowMultipleSelections](#state.EditorState^allowMultipleSelections)**: [Facet](#state.Facet)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-static lineSeparator `:`Facet `<`string `,`string `|`undefined `>`The line separator to use. By default, any of
+A facet that, when enabled, causes the editor to allow multiple ranges to be selected. Be careful though, because by default the editor relies on the native DOM selection, which cannot handle multiple selections. An extension like [`drawSelection`](#view.drawSelection) can be used to make secondary selections visible to the user.
 
-`"\n"`,
+`static **[tabSize](#state.EditorState^tabSize)**: [Facet](#state.Facet)<[number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)>`
 
-`"\r\n"`and
+Configures the tab size to use in this state. The first (highest-precedence) value of the facet is used. If no value is given, this defaults to 4.
 
-`"\r"`is treated as a separator when splitting lines, and
-lines are joined with
+`static **[lineSeparator](#state.EditorState^lineSeparator)**: [Facet](#state.Facet)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)>`
 
-`"\n"`.
+The line separator to use. By default, any of `"\n"`, `"\r\n"` and `"\r"` is treated as a separator when splitting lines, and lines are joined with `"\n"`.
 
-When you configure a value here, only that precise separator
-will be used, allowing you to round-trip documents through the
-editor without normalizing line separators.
+When you configure a value here, only that precise separator will be used, allowing you to round-trip documents through the editor without normalizing line separators.
 
-static readOnly `:`Facet `<`boolean `,`boolean `>`This facet controls the value of the
+`static **[readOnly](#state.EditorState^readOnly)**: [Facet](#state.Facet)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`readOnly`getter, which is
-consulted by commands and extensions that implement editing
-functionality to determine whether they should apply. It
-defaults to false, but when its highest-precedence value is
+This facet controls the value of the [`readOnly`](#state.EditorState.readOnly) getter, which is consulted by commands and extensions that implement editing functionality to determine whether they should apply. It defaults to false, but when its highest-precedence value is `true`, such functionality disables itself.
 
-`true`, such functionality disables itself.
+Not to be confused with [`EditorView.editable`](#view.EditorView%5Eeditable), which controls whether the editor's DOM is set to be editable (and thus focusable).
 
-Not to be confused with
+`static **[phrases](#state.EditorState^phrases)**: [Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>>`
 
-`EditorView.editable`, which
-controls whether the editor's DOM is set to be editable (and
-thus focusable).
+Registers translation phrases. The [`phrase`](#state.EditorState.phrase) method will look through all objects registered with this facet to find translations for its argument.
 
-static phrases `:`Facet `<`Object `<`string `>>`Registers translation phrases. The
+`static **[languageData](#state.EditorState^languageData)**: [Facet](#state.Facet)<  fn([state](#state.EditorState^languageData^state): [EditorState](#state.EditorState), [pos](#state.EditorState^languageData^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [side](#state.EditorState^languageData^side): -1 | 0 | 1) → readonly [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>[]  >`
 
-`phrase`method will look through
-all objects registered with this facet to find translations for
-its argument.
+A facet used to register [language data](#state.EditorState.languageDataAt) providers.
 
-static languageData `:`Facet `<`fn ( state : EditorState , pos : number , side : -1 | 0 | 1 ) → readonly Object < any >[] `>`A facet used to register
+`static **[changeFilter](#state.EditorState^changeFilter)**: [Facet](#state.Facet)<fn([tr](#state.EditorState^changeFilter^tr): [Transaction](#state.Transaction)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | readonly [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)[]>`
 
-language
-data providers.
+Facet used to register change filters, which are called for each transaction (unless explicitly [disabled](#state.TransactionSpec.filter)), and can suppress part of the transaction's changes.
 
-static changeFilter `:`Facet `<`fn `(`tr `:`Transaction `) →`boolean `|`readonly number `[]>`Facet used to register change filters, which are called for each
-transaction (unless explicitly
+Such a function can return `true` to indicate that it doesn't want to do anything, `false` to completely stop the changes in the transaction, or a set of ranges in which changes should be suppressed. Such ranges are represented as an array of numbers, with each pair of two numbers indicating the start and end of a range. So for example `[10, 20, 100, 110]` suppresses changes between 10 and 20, and between 100 and 110.
 
-disabled ), and can suppress
-part of the transaction's changes.
+`static **[transactionFilter](#state.EditorState^transactionFilter)**: [Facet](#state.Facet)<  fn([tr](#state.EditorState^transactionFilter^tr): [Transaction](#state.Transaction)) → [TransactionSpec](#state.TransactionSpec) | readonly [TransactionSpec](#state.TransactionSpec)[]  >`
 
-Such a function can return
+Facet used to register a hook that gets a chance to update or replace transaction specs before they are applied. This will only be applied for transactions that don't have [`filter`](#state.TransactionSpec.filter) set to `false`. You can either return a single transaction spec (possibly the input transaction), or an array of specs (which will be combined in the same way as the arguments to [`EditorState.update`](#state.EditorState.update)).
 
-`true`to indicate that it doesn't
-want to do anything,
+When possible, it is recommended to avoid accessing [`Transaction.state`](#state.Transaction.state) in a filter, since it will force creation of a state that will then be discarded again, if the transaction is actually filtered.
 
-`false`to completely stop the changes in
-the transaction, or a set of ranges in which changes should be
-suppressed. Such ranges are represented as an array of numbers,
-with each pair of two numbers indicating the start and end of a
-range. So for example
+(This functionality should be used with care. Indiscriminately modifying transaction is likely to break something or degrade the user experience.)
 
-`[10, 20, 100, 110]`suppresses changes
-between 10 and 20, and between 100 and 110.
+`static **[transactionExtender](#state.EditorState^transactionExtender)**: [Facet](#state.Facet)<  fn([tr](#state.EditorState^transactionExtender^tr): [Transaction](#state.Transaction)) → [Pick](https://www.typescriptlang.org/docs/handbook/utility-types.html#picktype-keys)<[TransactionSpec](#state.TransactionSpec), "effects" | "annotations"> |  [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-static transactionFilter `:`Facet `<`fn ( tr : Transaction ) → TransactionSpec | readonly TransactionSpec [] `>`Facet used to register a hook that gets a chance to update or
-replace transaction specs before they are applied. This will
-only be applied for transactions that don't have
+This is a more limited form of [`transactionFilter`](#state.EditorState%5EtransactionFilter), which can only add [annotations](#state.TransactionSpec.annotations) and [effects](#state.TransactionSpec.effects). _But_, this type of filter runs even if the transaction has disabled regular [filtering](#state.TransactionSpec.filter), making it suitable for effects that don't need to touch the changes or selection, but do want to process every transaction.
 
-`filter`set to
+Extenders run _after_ filters, when both are present.
 
-`false`. You
-can either return a single transaction spec (possibly the input
-transaction), or an array of specs (which will be combined in
-the same way as the arguments to
+#### `class` [SelectionRange](#state.SelectionRange)
 
-`EditorState.update`).
+A single selection range. When [`allowMultipleSelections`](#state.EditorState%5EallowMultipleSelections) is enabled, a [selection](#state.EditorSelection) may hold multiple ranges. By default, selections hold exactly one range.
 
-When possible, it is recommended to avoid accessing
+`**[from](#state.SelectionRange.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`Transaction.state`in a filter,
-since it will force creation of a state that will then be
-discarded again, if the transaction is actually filtered.
+The lower boundary of the range.
 
-(This functionality should be used with care. Indiscriminately
-modifying transaction is likely to break something or degrade
-the user experience.)
+`**[to](#state.SelectionRange.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static transactionExtender `:`Facet `<`fn ( tr : Transaction ) → Pick < TransactionSpec , "effects" | "annotations" > | null `>`This is a more limited form of
+The upper boundary of the range.
 
-`transactionFilter`,
-which can only add
+`**[anchor](#state.SelectionRange.anchor)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-annotations and
+The anchor of the range—the side that doesn't move when you extend it.
 
-effects .
+`**[head](#state.SelectionRange.head)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-But , this type
-of filter runs even if the transaction has disabled regular
+The head of the range, which is moved when the range is [extended](#state.SelectionRange.extend).
 
-filtering , making it suitable
-for effects that don't need to touch the changes or selection,
-but do want to process every transaction.
+`**[empty](#state.SelectionRange.empty)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-Extenders run
+True when `anchor` and `head` are at the same position.
 
-after filters, when both are present.
+`**[assoc](#state.SelectionRange.assoc)**: -1 | 0 | 1`
 
-class SelectionRange A single selection range. When
+If this is a cursor that is explicitly associated with the character on one of its sides, this returns the side. -1 means the character before its position, 1 the character after, and 0 means no association.
 
-`allowMultipleSelections`is enabled, a
+`**[bidiLevel](#state.SelectionRange.bidiLevel)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-selection may hold
-multiple ranges. By default, selections hold exactly one range.
+The bidirectional text level associated with this cursor, if any.
 
-from `:`number The lower boundary of the range.
+`**[goalColumn](#state.SelectionRange.goalColumn)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-to `:`number The upper boundary of the range.
+The goal column (stored vertical offset) associated with a cursor. This is used to preserve the vertical position when [moving](#view.EditorView.moveVertically) across lines of different length.
 
-anchor `:`number The anchor of the range—the side that doesn't move when you
-extend it.
+`**[map](#state.SelectionRange.map)**([change](#state.SelectionRange.map^change): [ChangeDesc](#state.ChangeDesc), [assoc](#state.SelectionRange.map^assoc)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = -1) → [SelectionRange](#state.SelectionRange)`
 
-head `:`number The head of the range, which is moved when the range is
+Map this range through a change, producing a valid range in the updated document.
 
-extended .
+`**[extend](#state.SelectionRange.extend)**([from](#state.SelectionRange.extend^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.SelectionRange.extend^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = from) → [SelectionRange](#state.SelectionRange)`
 
-empty `:`boolean True when
+Extend this range to cover at least `from` to `to`.
 
-`anchor`and
+`**[eq](#state.SelectionRange.eq)**([other](#state.SelectionRange.eq^other): [SelectionRange](#state.SelectionRange), [includeAssoc](#state.SelectionRange.eq^includeAssoc)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`head`are at the same position.
+Compare this range to another range.
 
-assoc `:`-1 `|`0 `|`1 If this is a cursor that is explicitly associated with the
-character on one of its sides, this returns the side. -1 means
-the character before its position, 1 the character after, and 0
-means no association.
+`**[toJSON](#state.SelectionRange.toJSON)**() → any`
 
-bidiLevel `:`number `|`null The bidirectional text level associated with this cursor, if
-any.
+Return a JSON-serializable object representing the range.
 
-goalColumn `:`number `|`undefined The goal column (stored vertical offset) associated with a
-cursor. This is used to preserve the vertical position when
+`static **[fromJSON](#state.SelectionRange^fromJSON)**([json](#state.SelectionRange^fromJSON^json): any) → [SelectionRange](#state.SelectionRange)`
 
-moving across
-lines of different length.
+Convert a JSON representation of a range to a `SelectionRange` instance.
 
-map `(`change `:`ChangeDesc `,`assoc `⁠?:`number = -1 `) →`SelectionRange Map this range through a change, producing a valid range in the
-updated document.
+#### `class` [EditorSelection](#state.EditorSelection)
 
-extend `(`from `:`number `,`to `⁠?:`number = from `) →`SelectionRange Extend this range to cover at least
+An editor selection holds one or more selection ranges.
 
-`from`to
+`**[ranges](#state.EditorSelection.ranges)**: readonly [SelectionRange](#state.SelectionRange)[]`
 
-`to`.
+The ranges in the selection, sorted by position. Ranges cannot overlap (but they may touch, if they aren't empty).
 
-eq `(`other `:`SelectionRange `,`includeAssoc `⁠?:`boolean = false `) →`boolean Compare this range to another range.
+`**[mainIndex](#state.EditorSelection.mainIndex)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-toJSON `() →`any Return a JSON-serializable object representing the range.
+The index of the _main_ range in the selection (which is usually the range that was added last).
 
-static fromJSON `(`json `:`any `) →`SelectionRange Convert a JSON representation of a range to a
+`**[map](#state.EditorSelection.map)**([change](#state.EditorSelection.map^change): [ChangeDesc](#state.ChangeDesc), [assoc](#state.EditorSelection.map^assoc)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = -1) → [EditorSelection](#state.EditorSelection)`
 
-`SelectionRange`instance.
+Map a selection through a change. Used to adjust the selection position for changes.
 
-class EditorSelection An editor selection holds one or more selection ranges.
+`**[eq](#state.EditorSelection.eq)**([other](#state.EditorSelection.eq^other): [EditorSelection](#state.EditorSelection), [includeAssoc](#state.EditorSelection.eq^includeAssoc)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-ranges `:`readonly SelectionRange `[]`The ranges in the selection, sorted by position. Ranges cannot
-overlap (but they may touch, if they aren't empty).
+Compare this selection to another selection. By default, ranges are compared only by position. When `includeAssoc` is true, cursor ranges must also have the same [`assoc`](#state.SelectionRange.assoc) value.
 
-mainIndex `:`number The index of the
+`**[main](#state.EditorSelection.main)**: [SelectionRange](#state.SelectionRange)`
 
-main range in the selection (which is
-usually the range that was added last).
+Get the primary selection range. Usually, you should make sure your code applies to _all_ ranges, by using methods like [`changeByRange`](#state.EditorState.changeByRange).
 
-map `(`change `:`ChangeDesc `,`assoc `⁠?:`number = -1 `) →`EditorSelection Map a selection through a change. Used to adjust the selection
-position for changes.
+`**[asSingle](#state.EditorSelection.asSingle)**() → [EditorSelection](#state.EditorSelection)`
 
-eq `(`other `:`EditorSelection `,`includeAssoc `⁠?:`boolean = false `) →`boolean Compare this selection to another selection. By default, ranges
-are compared only by position. When
+Make sure the selection only has one range. Returns a selection holding only the main range from this selection.
 
-`includeAssoc`is true,
-cursor ranges must also have the same
+`**[addRange](#state.EditorSelection.addRange)**([range](#state.EditorSelection.addRange^range): [SelectionRange](#state.SelectionRange), [main](#state.EditorSelection.addRange^main)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = true) → [EditorSelection](#state.EditorSelection)`
 
-`assoc`value.
+Extend this selection with an extra range.
 
-main `:`SelectionRange Get the primary selection range. Usually, you should make sure
-your code applies to
+`**[replaceRange](#state.EditorSelection.replaceRange)**([range](#state.EditorSelection.replaceRange^range): [SelectionRange](#state.SelectionRange), [which](#state.EditorSelection.replaceRange^which)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = this.mainIndex) → [EditorSelection](#state.EditorSelection)`
 
-all ranges, by using methods like
+Replace a given range with another range, and then normalize the selection to merge and sort ranges if necessary.
 
-`changeByRange`.
+`**[toJSON](#state.EditorSelection.toJSON)**() → any`
 
-asSingle `() →`EditorSelection Make sure the selection only has one range. Returns a selection
-holding only the main range from this selection.
+Convert this selection to an object that can be serialized to JSON.
 
-addRange `(`range `:`SelectionRange `,`main `⁠?:`boolean = true `) →`EditorSelection Extend this selection with an extra range.
+`static **[fromJSON](#state.EditorSelection^fromJSON)**([json](#state.EditorSelection^fromJSON^json): any) → [EditorSelection](#state.EditorSelection)`
 
-replaceRange `(`range `:`SelectionRange `,`which `⁠?:`number = this.mainIndex `) →`EditorSelection Replace a given range with another range, and then normalize the
-selection to merge and sort ranges if necessary.
+Create a selection from a JSON representation.
 
-toJSON `() →`any Convert this selection to an object that can be serialized to
-JSON.
+`static **[single](#state.EditorSelection^single)**([anchor](#state.EditorSelection^single^anchor): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [head](#state.EditorSelection^single^head)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = anchor) → [EditorSelection](#state.EditorSelection)`
 
-static fromJSON `(`json `:`any `) →`EditorSelection Create a selection from a JSON representation.
+Create a selection holding a single range.
 
-static single `(`anchor `:`number `,`head `⁠?:`number = anchor `) →`EditorSelection Create a selection holding a single range.
+`static **[create](#state.EditorSelection^create)**(  [ranges](#state.EditorSelection^create^ranges): readonly [SelectionRange](#state.SelectionRange)[],  [mainIndex](#state.EditorSelection^create^mainIndex)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0  ) → [EditorSelection](#state.EditorSelection)`
 
-static create `(`ranges : readonly SelectionRange [], mainIndex ⁠?: number = 0 `) →`EditorSelection Sort and merge the given set of ranges, creating a valid
-selection.
+Sort and merge the given set of ranges, creating a valid selection.
 
-static cursor `(`pos : number , assoc ⁠?: number = 0 , bidiLevel ⁠?: number , goalColumn ⁠?: number `) →`SelectionRange Create a cursor selection range at the given position. You can
-safely ignore the optional arguments in most situations.
+`static **[cursor](#state.EditorSelection^cursor)**(  [pos](#state.EditorSelection^cursor^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [assoc](#state.EditorSelection^cursor^assoc)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0,  [bidiLevel](#state.EditorSelection^cursor^bidiLevel)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [goalColumn](#state.EditorSelection^cursor^goalColumn)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [SelectionRange](#state.SelectionRange)`
 
-static range `(`anchor : number , head : number , goalColumn ⁠?: number , bidiLevel ⁠?: number `) →`SelectionRange Create a selection range.
+Create a cursor selection range at the given position. You can safely ignore the optional arguments in most situations.
 
-enum CharCategory The categories produced by a
+`static **[range](#state.EditorSelection^range)**(  [anchor](#state.EditorSelection^range^anchor): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [head](#state.EditorSelection^range^head): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [goalColumn](#state.EditorSelection^range^goalColumn)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [bidiLevel](#state.EditorSelection^range^bidiLevel)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [SelectionRange](#state.SelectionRange)`
 
-character
-categorizer . These are used
-do things like selecting by word.
+Create a selection range.
 
-Word Word characters.
+`enum **[CharCategory](#state.CharCategory)**`
 
-Space Whitespace.
+The categories produced by a [character categorizer](#state.EditorState.charCategorizer). These are used do things like selecting by word.
 
-Other Anything else.
+`**[Word](#state.CharCategory.Word)**`
+
+Word characters.
+
+`**[Space](#state.CharCategory.Space)**`
+
+Whitespace.
+
+`**[Other](#state.CharCategory.Other)**`
+
+Anything else.
 
 ### Text
 
-The
+The `Text` type stores documents in an immutable tree-shaped representation that allows:
 
-`Text`type stores documents in an immutable tree-shaped
-representation that allows:
+- Efficient indexing both by code unit offset and by line number.
+- Structure-sharing immutable updates.
+- Access to and iteration over parts of the document without copying or concatenating big strings.
 
-Efficient indexing both by code unit offset and by line number.
+Line numbers start at 1. Character positions are counted from zero, and count each line break and UTF-16 code unit as one unit.
 
-Structure-sharing immutable updates.
+#### `class` [Text](#state.Text) `implements [Iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#The_iterable_protocol)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-Access to and iteration over parts of the document without copying
-or concatenating big strings.
+The data structure for documents.
 
-Line numbers start at 1. Character positions are counted from zero,
-and count each line break and UTF-16 code unit as one unit.
+`**[length](#state.Text.length)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-class Text implements Iterable `<`string `>`The data structure for documents.
+The length of the string.
 
-length `:`number The length of the string.
+`**[lines](#state.Text.lines)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-lines `:`number The number of lines in the string (always >= 1).
+The number of lines in the string (always >= 1).
 
-lineAt `(`pos `:`number `) →`Line Get the line description around the given position.
+`**[lineAt](#state.Text.lineAt)**([pos](#state.Text.lineAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Line](#state.Line)`
 
-line `(`n `:`number `) →`Line Get the description for the given (1-based) line number.
+Get the line description around the given position.
 
-replace `(`from `:`number `,`to `:`number `,`text `:`Text `) →`Text Replace a range of the text with the given content.
+`**[line](#state.Text.line)**([n](#state.Text.line^n): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Line](#state.Line)`
 
-append `(`other `:`Text `) →`Text Append another document to this one.
+Get the description for the given (1-based) line number.
 
-slice `(`from `:`number `,`to `⁠?:`number = this.length `) →`Text Retrieve the text between the given points.
+`**[replace](#state.Text.replace)**([from](#state.Text.replace^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.Text.replace^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [text](#state.Text.replace^text): [Text](#state.Text)) → [Text](#state.Text)`
 
-sliceString `(`from `:`number `,`to `⁠?:`number `,`lineSep `⁠?:`string `) →`string Retrieve a part of the document as a string
+Replace a range of the text with the given content.
 
-eq `(`other `:`Text `) →`boolean Test whether this text is equal to another instance.
+`**[append](#state.Text.append)**([other](#state.Text.append^other): [Text](#state.Text)) → [Text](#state.Text)`
 
-iter `(`dir `⁠?:`1 `|`-1 = 1 `) →`TextIterator Iterate over the text. When
+Append another document to this one.
 
-`dir`is
+`**[slice](#state.Text.slice)**([from](#state.Text.slice^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.Text.slice^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = this.length) → [Text](#state.Text)`
 
-`-1`, iteration happens
-from end to start. This will return lines and the breaks between
-them as separate strings.
+Retrieve the text between the given points.
 
-iterRange `(`from `:`number `,`to `⁠?:`number = this.length `) →`TextIterator Iterate over a range of the text. When
+`**[sliceString](#state.Text.sliceString)**([from](#state.Text.sliceString^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.Text.sliceString^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [lineSep](#state.Text.sliceString^lineSep)⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`from`>
+Retrieve a part of the document as a string
 
-`to`, the
-iterator will run in reverse.
+`**[eq](#state.Text.eq)**([other](#state.Text.eq^other): [Text](#state.Text)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-iterLines `(`from `⁠?:`number `,`to `⁠?:`number `) →`TextIterator Return a cursor that iterates over the given range of lines,
+Test whether this text is equal to another instance.
 
-without returning the line breaks between, and yielding empty
-strings for empty lines.
+`**[iter](#state.Text.iter)**([dir](#state.Text.iter^dir)⁠?: 1 | -1 = 1) → [TextIterator](#state.TextIterator)`
 
-When
+Iterate over the text. When `dir` is `-1`, iteration happens from end to start. This will return lines and the breaks between them as separate strings.
 
-`from`and
+`**[iterRange](#state.Text.iterRange)**([from](#state.Text.iterRange^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.Text.iterRange^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = this.length) → [TextIterator](#state.TextIterator)`
 
-`to`are given, they should be 1-based line numbers.
+Iterate over a range of the text. When `from` > `to`, the iterator will run in reverse.
 
-toString `() →`string Return the document as a string, using newline characters to
-separate lines.
+`**[iterLines](#state.Text.iterLines)**([from](#state.Text.iterLines^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.Text.iterLines^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [TextIterator](#state.TextIterator)`
 
-toJSON `() →`string `[]`Convert the document to an array of lines (which can be
-deserialized again via
+Return a cursor that iterates over the given range of lines, _without_ returning the line breaks between, and yielding empty strings for empty lines.
 
-`Text.of`).
+When `from` and `to` are given, they should be 1-based line numbers.
 
-children `:`readonly Text `[] |`null If this is a branch node,
+`**[toString](#state.Text.toString)**() → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`children`will hold the
+Return the document as a string, using newline characters to separate lines.
 
-`Text`objects that it is made up of. For leaf nodes, this holds null.
+`**[toJSON](#state.Text.toJSON)**() → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-[symbol iterator] `() →`Iterator `<`string `>`@hide
+Convert the document to an array of lines (which can be deserialized again via [`Text.of`](#state.Text%5Eof)).
 
-static of `(`text `:`readonly string `[]) →`Text Create a
+`**[children](#state.Text.children)**: readonly [Text](#state.Text)[] | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`Text`instance for the given array of lines.
+If this is a branch node, `children` will hold the `Text` objects that it is made up of. For leaf nodes, this holds null.
 
-static empty `:`Text The empty document.
+`**[[symbol iterator]](#state.Text.[symbol iterator])**() → [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-class Line This type describes a line in the document. It is created
-on-demand when lines are
+@hide
 
-queried .
+`static **[of](#state.Text^of)**([text](#state.Text^of^text): readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]) → [Text](#state.Text)`
 
-from `:`number The position of the start of the line.
+Create a `Text` instance for the given array of lines.
 
-to `:`number The position at the end of the line (
+`static **[empty](#state.Text^empty)**: [Text](#state.Text)`
 
-before the line break,
-or at the end of document for the last line).
+The empty document.
 
-number `:`number This line's line number (1-based).
+#### `class` [Line](#state.Line)
 
-text `:`string The line's content.
+This type describes a line in the document. It is created on-demand when lines are [queried](#state.Text.lineAt).
 
-length `:`number The length of the line (not including any line break after it).
+`**[from](#state.Line.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-interface TextIterator extends Iterator `<`string `>`extends Iterable `<`string `>`A text iterator iterates over a sequence of strings. When
-iterating over a
+The position of the start of the line.
 
-`Text`document, result values will
-either be lines or line breaks.
+`**[to](#state.Line.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-next `(`skip `⁠?:`number `) →`TextIterator Retrieve the next string. Optionally skip a given number of
-positions after the current position. Always returns the object
-itself.
+The position at the end of the line (_before_ the line break, or at the end of document for the last line).
 
-value `:`string The current string. Will be the empty string when the cursor is
-at its end or
+`**[number](#state.Line.number)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`next`hasn't been called on it yet.
+This line's line number (1-based).
 
-done `:`boolean Whether the end of the iteration has been reached. You should
-probably check this right after calling
+`**[text](#state.Line.text)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`next`.
+The line's content.
 
-lineBreak `:`boolean Whether the current string represents a line break.
+`**[length](#state.Line.length)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The length of the line (not including any line break after it).
+
+#### `interface` [TextIterator](#state.TextIterator) `extends [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>` `extends [Iterable](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#The_iterable_protocol)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
+
+A text iterator iterates over a sequence of strings. When iterating over a [`Text`](#state.Text) document, result values will either be lines or line breaks.
+
+`**[next](#state.TextIterator.next)**([skip](#state.TextIterator.next^skip)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [TextIterator](#state.TextIterator)`
+
+Retrieve the next string. Optionally skip a given number of positions after the current position. Always returns the object itself.
+
+`**[value](#state.TextIterator.value)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+The current string. Will be the empty string when the cursor is at its end or `next` hasn't been called on it yet.
+
+`**[done](#state.TextIterator.done)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Whether the end of the iteration has been reached. You should probably check this right after calling `next`.
+
+`**[lineBreak](#state.TextIterator.lineBreak)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Whether the current string represents a line break.
 
 #### Column Utilities
 
-countColumn `(`string : string , tabSize : number , to ⁠?: number = string.length `) →`number Count the column position at the given offset into the string,
-taking extending characters and tab size into account.
+`**[countColumn](#state.countColumn)**(  [string](#state.countColumn^string): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [tabSize](#state.countColumn^tabSize): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.countColumn^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = string.length  ) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-findColumn `(`string : string , col : number , tabSize : number , strict ⁠?: boolean `) →`number Find the offset that corresponds to the given column position in a
-string, taking extending characters and tab size into account. By
-default, the string length is returned when it is too short to
-reach the column. Pass
+Count the column position at the given offset into the string, taking extending characters and tab size into account.
 
-`strict`true to make it return -1 in that
-situation.
+`**[findColumn](#state.findColumn)**(  [string](#state.findColumn^string): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [col](#state.findColumn^col): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [tabSize](#state.findColumn^tabSize): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [strict](#state.findColumn^strict)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  ) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Find the offset that corresponds to the given column position in a string, taking extending characters and tab size into account. By default, the string length is returned when it is too short to reach the column. Pass `strict` true to make it return -1 in that situation.
 
 #### Code Points and Characters
 
-If you support environments that don't yet have
+If you support environments that don't yet have `String.fromCodePoint` and `codePointAt`, this package provides portable replacements for them.
 
-`String.fromCodePoint`and
+`**[codePointAt](#state.codePointAt)**([str](#state.codePointAt^str): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [pos](#state.codePointAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`codePointAt`, this package provides portable replacements for them.
+Find the code point at the given position in a string (like the [`codePointAt`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/codePointAt) string method).
 
-codePointAt `(`str `:`string `,`pos `:`number `) →`number Find the code point at the given position in a string (like the
+`**[fromCodePoint](#state.fromCodePoint)**([code](#state.fromCodePoint^code): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`codePointAt`string method).
+Given a Unicode codepoint, return the JavaScript string that respresents it (like [`String.fromCodePoint`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/fromCodePoint)).
 
-fromCodePoint `(`code `:`number `) →`string Given a Unicode codepoint, return the JavaScript string that
-respresents it (like
+`**[codePointSize](#state.codePointSize)**([code](#state.codePointSize^code): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → 1 | 2`
 
-`String.fromCodePoint`).
+The amount of positions a character takes up in a JavaScript string.
 
-codePointSize `(`code `:`number `) →`1 `|`2 The amount of positions a character takes up in a JavaScript string.
+`**[findClusterBreak](#state.findClusterBreak)**(  [str](#state.findClusterBreak^str): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [pos](#state.findClusterBreak^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [forward](#state.findClusterBreak^forward)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = true,  [includeExtending](#state.findClusterBreak^includeExtending)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = true  ) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-findClusterBreak `(`str : string , pos : number , forward ⁠?: boolean = true , includeExtending ⁠?: boolean = true `) →`number Returns a next grapheme cluster break
-
-after (not equal to)
-
-`pos`, if
-
-`forward`is true, or before otherwise. Returns
-
-`pos`itself if no further cluster break is available in the string.
-Moves across surrogate pairs, extending characters (when
-
-`includeExtending`is true), characters joined with zero-width
-joiners, and flag emoji.
+Returns a next grapheme cluster break _after_ (not equal to) `pos`, if `forward` is true, or before otherwise. Returns `pos` itself if no further cluster break is available in the string. Moves across surrogate pairs, extending characters (when `includeExtending` is true), characters joined with zero-width joiners, and flag emoji.
 
 ### Changes and Transactions
 
-CodeMirror treats changes to the document as
+CodeMirror treats changes to the document as [objects](#state.ChangeSet), which are usually part of a [transaction](#state.Transaction).
 
-objects , which are usually part of a
+This is how you'd make a change to a document (replacing “world” with “editor”) and create a new state with the updated document:
 
-transaction .
+    let state = EditorState.create({doc: "hello world"})
+    let transaction = state.update({changes: {from: 6, to: 11, insert: "editor"}})
+    console.log(transaction.state.doc.toString()) // "hello editor"
 
-This is how you'd make a change to a document (replacing “world” with
-“editor”) and create a new state with the updated document:
+#### `interface` [TransactionSpec](#state.TransactionSpec)
 
-let state = EditorState . create ( { doc : "hello world" } ) let transaction = state . update ( { changes : { from : 6 , to : 11 , insert : "editor" } } ) console . log ( transaction . state . doc . toString ( ) ) // "hello editor" interface TransactionSpec Describes a
+Describes a [transaction](#state.Transaction) when calling the [`EditorState.update`](#state.EditorState.update) method.
 
-transaction when calling the
+`**[changes](#state.TransactionSpec.changes)**⁠?: [ChangeSpec](#state.ChangeSpec)`
 
-`EditorState.update`method.
+The changes to the document made by this transaction.
 
-changes `⁠?:`ChangeSpec The changes to the document made by this transaction.
+`**[selection](#state.TransactionSpec.selection)**⁠?: [EditorSelection](#state.EditorSelection) |  {anchor: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), head⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} |  [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)  `
 
-selection `⁠?:`EditorSelection `|`{ anchor : number , head ⁠?: number } | undefined When set, this transaction explicitly updates the selection.
-Offsets in this selection should refer to the document as it is
+When set, this transaction explicitly updates the selection. Offsets in this selection should refer to the document as it is _after_ the transaction.
 
-after the transaction.
+`**[effects](#state.TransactionSpec.effects)**⁠?: [StateEffect](#state.StateEffect)<any> | readonly [StateEffect](#state.StateEffect)<any>[]`
 
-effects `⁠?:`StateEffect `<`any `> |`readonly StateEffect `<`any `>[]`Attach
+Attach [state effects](#state.StateEffect) to this transaction. Again, when they contain positions and this same spec makes changes, those positions should refer to positions in the updated document.
 
-state effects to this transaction.
-Again, when they contain positions and this same spec makes
-changes, those positions should refer to positions in the
-updated document.
+`**[annotations](#state.TransactionSpec.annotations)**⁠?: [Annotation](#state.Annotation)<any> | readonly [Annotation](#state.Annotation)<any>[]`
 
-annotations `⁠?:`Annotation `<`any `> |`readonly Annotation `<`any `>[]`Set
+Set [annotations](#state.Annotation) for this transaction.
 
-annotations for this transaction.
+`**[userEvent](#state.TransactionSpec.userEvent)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-userEvent `⁠?:`string Shorthand for
+Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction%5EuserEvent)`.of(...)`.
 
-`annotations:``Transaction.userEvent``.of(...)`.
+`**[scrollIntoView](#state.TransactionSpec.scrollIntoView)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-scrollIntoView `⁠?:`boolean When set to
+When set to `true`, the transaction is marked as needing to scroll the current selection into view.
 
-`true`, the transaction is marked as needing to
-scroll the current selection into view.
+`**[filter](#state.TransactionSpec.filter)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-filter `⁠?:`boolean By default, transactions can be modified by
+By default, transactions can be modified by [change filters](#state.EditorState%5EchangeFilter) and [transaction filters](#state.EditorState%5EtransactionFilter). You can set this to `false` to disable that. This can be necessary for transactions that, for example, include annotations that must be kept consistent with their changes.
 
-change
-filters and
+`**[sequential](#state.TransactionSpec.sequential)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-transaction
-filters . You can set this
-to
+Normally, when multiple specs are combined (for example by [`EditorState.update`](#state.EditorState.update)), the positions in `changes` are taken to refer to the document positions in the initial document. When a spec has `sequental` set to true, its positions will be taken to refer to the document created by the specs before it instead.
 
-`false`to disable that. This can be necessary for
-transactions that, for example, include annotations that must be
-kept consistent with their changes.
+`type **[ChangeSpec](#state.ChangeSpec)** = {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), insert⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [Text](#state.Text)} |  [ChangeSet](#state.ChangeSet) |  readonly [ChangeSpec](#state.ChangeSpec)[]  `
 
-sequential `⁠?:`boolean Normally, when multiple specs are combined (for example by
+This type is used as argument to [`EditorState.changes`](#state.EditorState.changes) and in the [`changes` field](#state.TransactionSpec.changes) of transaction specs to succinctly describe document changes. It may either be a plain object describing a change (a deletion, insertion, or replacement, depending on which fields are present), a [change set](#state.ChangeSet), or an array of change specs.
 
-`EditorState.update`), the
-positions in
+#### `class` [Transaction](#state.Transaction)
 
-`changes`are taken to refer to the document
-positions in the initial document. When a spec has
+Changes to the editor state are grouped into transactions. Typically, a user action creates a single transaction, which may contain any number of document changes, may change the selection, or have other effects. Create a transaction by calling [`EditorState.update`](#state.EditorState.update), or immediately dispatch one by calling [`EditorView.dispatch`](#view.EditorView.dispatch).
 
-`sequental`set to true, its positions will be taken to refer to the
-document created by the specs before it instead.
+`**[startState](#state.Transaction.startState)**: [EditorState](#state.EditorState)`
 
-type ChangeSpec `= {`from `:`number `,`to `⁠?:`number `,`insert `⁠?:`string `|`Text `} |`ChangeSet | readonly ChangeSpec [] This type is used as argument to
+The state from which the transaction starts.
 
-`EditorState.changes`and in the
+`**[changes](#state.Transaction.changes)**: [ChangeSet](#state.ChangeSet)`
 
-`changes`field of transaction
-specs to succinctly describe document changes. It may either be a
-plain object describing a change (a deletion, insertion, or
-replacement, depending on which fields are present), a
+The document changes made by this transaction.
 
-change
-set , or an array of change specs.
+`**[selection](#state.Transaction.selection)**: [EditorSelection](#state.EditorSelection) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-class Transaction Changes to the editor state are grouped into transactions.
-Typically, a user action creates a single transaction, which may
-contain any number of document changes, may change the selection,
-or have other effects. Create a transaction by calling
+The selection set by this transaction, or undefined if it doesn't explicitly set a selection.
 
-`EditorState.update`, or immediately
-dispatch one by calling
+`**[effects](#state.Transaction.effects)**: readonly [StateEffect](#state.StateEffect)<any>[]`
 
-`EditorView.dispatch`.
+The effects added to the transaction.
 
-startState `:`EditorState The state from which the transaction starts.
+`**[scrollIntoView](#state.Transaction.scrollIntoView)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-changes `:`ChangeSet The document changes made by this transaction.
+Whether the selection should be scrolled into view after this transaction is dispatched.
 
-selection `:`EditorSelection `|`undefined The selection set by this transaction, or undefined if it
-doesn't explicitly set a selection.
+`**[newDoc](#state.Transaction.newDoc)**: [Text](#state.Text)`
 
-effects `:`readonly StateEffect `<`any `>[]`The effects added to the transaction.
+The new document produced by the transaction. Contrary to [`.state`](#state.Transaction.state)`.doc`, accessing this won't force the entire new state to be computed right away, so it is recommended that [transaction filters](#state.EditorState%5EtransactionFilter) use this getter when they need to look at the new document.
 
-scrollIntoView `:`boolean Whether the selection should be scrolled into view after this
-transaction is dispatched.
+`**[newSelection](#state.Transaction.newSelection)**: [EditorSelection](#state.EditorSelection)`
 
-newDoc `:`Text The new document produced by the transaction. Contrary to
+The new selection produced by the transaction. If [`this.selection`](#state.Transaction.selection) is undefined, this will [map](#state.EditorSelection.map) the start state's current selection through the changes made by the transaction.
 
-`.state``.doc`, accessing this won't
-force the entire new state to be computed right away, so it is
-recommended that
+`**[state](#state.Transaction.state)**: [EditorState](#state.EditorState)`
 
-transaction
-filters use this getter
-when they need to look at the new document.
+The new state created by the transaction. Computed on demand (but retained for subsequent access), so it is recommended not to access it in [transaction filters](#state.EditorState%5EtransactionFilter) when possible.
 
-newSelection `:`EditorSelection The new selection produced by the transaction. If
+`**[annotation](#state.Transaction.annotation)**<[T](#state.Transaction.annotation^T)>([type](#state.Transaction.annotation^type): [AnnotationType](#state.AnnotationType)<[T](#state.Transaction.annotation^T)>) → [T](#state.Transaction.annotation^T) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-`this.selection`is undefined,
-this will
+Get the value of the given annotation type, if any.
 
-map the start state's
-current selection through the changes made by the transaction.
+`**[docChanged](#state.Transaction.docChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-state `:`EditorState The new state created by the transaction. Computed on demand
-(but retained for subsequent access), so it is recommended not to
-access it in
+Indicates whether the transaction changed the document.
 
-transaction
-filters when possible.
+`**[reconfigured](#state.Transaction.reconfigured)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-annotation `<`T `>(`type `:`AnnotationType `<`T `>) →`T `|`undefined Get the value of the given annotation type, if any.
+Indicates whether this transaction reconfigures the state (through a [configuration compartment](#state.Compartment) or with a top-level configuration [effect](#state.StateEffect%5Ereconfigure).
 
-docChanged `:`boolean Indicates whether the transaction changed the document.
+`**[isUserEvent](#state.Transaction.isUserEvent)**([event](#state.Transaction.isUserEvent^event): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-reconfigured `:`boolean Indicates whether this transaction reconfigures the state
-(through a
+Returns true if the transaction has a [user event](#state.Transaction%5EuserEvent) annotation that is equal to or more specific than `event`. For example, if the transaction has `"select.pointer"` as user event, `"select"` and `"select.pointer"` will match it.
 
-configuration compartment or
-with a top-level configuration
+`static **[time](#state.Transaction^time)**: [AnnotationType](#state.AnnotationType)<[number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)>`
 
-effect .
+Annotation used to store transaction timestamps. Automatically added to every transaction, holding `Date.now()`.
 
-isUserEvent `(`event `:`string `) →`boolean Returns true if the transaction has a
+`static **[userEvent](#state.Transaction^userEvent)**: [AnnotationType](#state.AnnotationType)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-user
-event annotation that is equal to
-or more specific than
+Annotation used to associate a transaction with a user interface event. Holds a string identifying the event, using a dot-separated format to support attaching more specific information. The events used by the core libraries are:
 
-`event`. For example, if the transaction
-has
+- `"input"` when content is entered
+  - `"input.type"` for typed input
+    - `"input.type.compose"` for composition
+  - `"input.paste"` for pasted input
+  - `"input.drop"` when adding content with drag-and-drop
+  - `"input.complete"` when autocompleting
+- `"delete"` when the user deletes content
+  - `"delete.selection"` when deleting the selection
+  - `"delete.forward"` when deleting forward from the selection
+  - `"delete.backward"` when deleting backward from the selection
+  - `"delete.cut"` when cutting to the clipboard
+- `"move"` when content is moved
+  - `"move.drop"` when content is moved within the editor through drag-and-drop
+- `"select"` when explicitly changing the selection
+  - `"select.pointer"` when selecting with a mouse or other pointing device
+- `"undo"` and `"redo"` for history actions
 
-`"select.pointer"`as user event,
+Use [`isUserEvent`](#state.Transaction.isUserEvent) to check whether the annotation matches a given event.
 
-`"select"`and
+`static **[addToHistory](#state.Transaction^addToHistory)**: [AnnotationType](#state.AnnotationType)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`"select.pointer"`will match it.
+Annotation indicating whether a transaction should be added to the undo history or not.
 
-static time `:`AnnotationType `<`number `>`Annotation used to store transaction timestamps. Automatically
-added to every transaction, holding
+`static **[remote](#state.Transaction^remote)**: [AnnotationType](#state.AnnotationType)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`Date.now()`.
+Annotation indicating (when present and true) that a transaction represents a change made by some other actor, not the user. This is used, for example, to tag other people's changes in collaborative editing.
 
-static userEvent `:`AnnotationType `<`string `>`Annotation used to associate a transaction with a user interface
-event. Holds a string identifying the event, using a
-dot-separated format to support attaching more specific
-information. The events used by the core libraries are:
+#### `class` [ChangeDesc](#state.ChangeDesc)
 
-`"input"`- when content is entered
-`"input.type"`- for typed input
-`"input.type.compose"`- for composition
-`"input.paste"`- for pasted input
-`"input.drop"`- when adding content with drag-and-drop
-`"input.complete"`- when autocompleting
-`"delete"`- when the user deletes content
-`"delete.selection"`- when deleting the selection
-`"delete.forward"`- when deleting forward from the selection
-`"delete.backward"`- when deleting backward from the selection
-`"delete.cut"`- when cutting to the clipboard
-`"move"`- when content is moved
-`"move.drop"`- when content is moved within the editor through drag-and-drop
-`"select"`- when explicitly changing the selection
-`"select.pointer"`- when selecting with a mouse or other pointing device
-`"undo"`- and
-`"redo"`- for history actions
-Use
+A change description is a variant of [change set](#state.ChangeSet) that doesn't store the inserted text. As such, it can't be applied, but is cheaper to store and manipulate.
 
-`isUserEvent`to check
-whether the annotation matches a given event.
+`**[length](#state.ChangeDesc.length)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static addToHistory `:`AnnotationType `<`boolean `>`Annotation indicating whether a transaction should be added to
-the undo history or not.
+The length of the document before the change.
 
-static remote `:`AnnotationType `<`boolean `>`Annotation indicating (when present and true) that a transaction
-represents a change made by some other actor, not the user. This
-is used, for example, to tag other people's changes in
-collaborative editing.
+`**[newLength](#state.ChangeDesc.newLength)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-class ChangeDesc A change description is a variant of
+The length of the document after the change.
 
-change set that doesn't store the inserted text. As such, it can't be
-applied, but is cheaper to store and manipulate.
+`**[empty](#state.ChangeDesc.empty)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-length `:`number The length of the document before the change.
+False when there are actual changes in this set.
 
-newLength `:`number The length of the document after the change.
+`**[iterGaps](#state.ChangeDesc.iterGaps)**([f](#state.ChangeDesc.iterGaps^f): fn([posA](#state.ChangeDesc.iterGaps^f^posA): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [posB](#state.ChangeDesc.iterGaps^f^posB): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [length](#state.ChangeDesc.iterGaps^f^length): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)))`
 
-empty `:`boolean False when there are actual changes in this set.
+Iterate over the unchanged parts left by these changes. `posA` provides the position of the range in the old document, `posB` the new position in the changed document.
 
-iterGaps `(`f `:`fn `(`posA `:`number `,`posB `:`number `,`length `:`number `))`Iterate over the unchanged parts left by these changes.
+`**[iterChangedRanges](#state.ChangeDesc.iterChangedRanges)**(  [f](#state.ChangeDesc.iterChangedRanges^f): fn([fromA](#state.ChangeDesc.iterChangedRanges^f^fromA): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [toA](#state.ChangeDesc.iterChangedRanges^f^toA): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [fromB](#state.ChangeDesc.iterChangedRanges^f^fromB): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [toB](#state.ChangeDesc.iterChangedRanges^f^toB): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)),  [individual](#state.ChangeDesc.iterChangedRanges^individual)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false  )`
 
-`posA`provides the position of the range in the old document,
+Iterate over the ranges changed by these changes. (See [`ChangeSet.iterChanges`](#state.ChangeSet.iterChanges) for a variant that also provides you with the inserted text.) `fromA`/`toA` provides the extent of the change in the starting document, `fromB`/`toB` the extent of the replacement in the changed document.
 
-`posB`the new position in the changed document.
+When `individual` is true, adjacent changes (which are kept separate for [position mapping](#state.ChangeDesc.mapPos)) are reported separately.
 
-iterChangedRanges `(`f : fn ( fromA : number , toA : number , fromB : number , toB : number ), individual ⁠?: boolean = false `)`Iterate over the ranges changed by these changes. (See
+`**[invertedDesc](#state.ChangeDesc.invertedDesc)**: [ChangeDesc](#state.ChangeDesc)`
 
-`ChangeSet.iterChanges`for a
-variant that also provides you with the inserted text.)
+Get a description of the inverted form of these changes.
 
-`fromA`/
+`**[composeDesc](#state.ChangeDesc.composeDesc)**([other](#state.ChangeDesc.composeDesc^other): [ChangeDesc](#state.ChangeDesc)) → [ChangeDesc](#state.ChangeDesc)`
 
-`toA`provides the extent of the change in the starting
-document,
+Compute the combined effect of applying another set of changes after this one. The length of the document after this set should match the length before `other`.
 
-`fromB`/
+`**[mapDesc](#state.ChangeDesc.mapDesc)**([other](#state.ChangeDesc.mapDesc^other): [ChangeDesc](#state.ChangeDesc), [before](#state.ChangeDesc.mapDesc^before)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false) → [ChangeDesc](#state.ChangeDesc)`
 
-`toB`the extent of the replacement in the
-changed document.
+Map this description, which should start with the same document as `other`, over another set of changes, so that it can be applied after it. When `before` is true, map as if the changes in `this` happened before the ones in `other`.
 
-When
+`**[mapPos](#state.ChangeDesc.mapPos)**([pos](#state.ChangeDesc.mapPos^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [assoc](#state.ChangeDesc.mapPos^assoc)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`individual`is true, adjacent changes (which are kept
-separate for
+`**[mapPos](#state.ChangeDesc.mapPos)**([pos](#state.ChangeDesc.mapPos^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [assoc](#state.ChangeDesc.mapPos^assoc): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [mode](#state.ChangeDesc.mapPos^mode): [MapMode](#state.MapMode)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-position mapping ) are
-reported separately.
+Map a given position through these changes, to produce a position pointing into the new document.
 
-invertedDesc `:`ChangeDesc Get a description of the inverted form of these changes.
+`assoc` indicates which side the position should be associated with. When it is negative or zero, the mapping will try to keep the position close to the character before it (if any), and will move it before insertions at that point or replacements across that point. When it is positive, the position is associated with the character after it, and will be moved forward for insertions at or replacements across the position. Defaults to -1.
 
-composeDesc `(`other `:`ChangeDesc `) →`ChangeDesc Compute the combined effect of applying another set of changes
-after this one. The length of the document after this set should
-match the length before
+`mode` determines whether deletions should be [reported](#state.MapMode). It defaults to [`MapMode.Simple`](#state.MapMode.Simple) (don't report deletions).
 
-`other`.
+`**[touchesRange](#state.ChangeDesc.touchesRange)**([from](#state.ChangeDesc.touchesRange^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.ChangeDesc.touchesRange^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = from) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | "cover"`
 
-mapDesc `(`other `:`ChangeDesc `,`before `⁠?:`boolean = false `) →`ChangeDesc Map this description, which should start with the same document
-as
+Check whether these changes touch a given range. When one of the changes entirely covers the range, the string `"cover"` is returned.
 
-`other`, over another set of changes, so that it can be
-applied after it. When
+`**[toJSON](#state.ChangeDesc.toJSON)**() → readonly [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)[]`
 
-`before`is true, map as if the changes
-in
+Serialize this change desc to a JSON-representable value.
 
-`this`happened before the ones in
+`static **[fromJSON](#state.ChangeDesc^fromJSON)**([json](#state.ChangeDesc^fromJSON^json): any) → [ChangeDesc](#state.ChangeDesc)`
 
-`other`.
+Create a change desc from its JSON representation (as produced by [`toJSON`](#state.ChangeDesc.toJSON).
 
-mapPos `(`pos `:`number `,`assoc `⁠?:`number `) →`number mapPos `(`pos `:`number `,`assoc `:`number `,`mode `:`MapMode `) →`number `|`null Map a given position through these changes, to produce a
-position pointing into the new document.
+`enum **[MapMode](#state.MapMode)**`
 
-`assoc`indicates which side the position should be associated
-with. When it is negative or zero, the mapping will try to keep
-the position close to the character before it (if any), and will
-move it before insertions at that point or replacements across
-that point. When it is positive, the position is associated with
-the character after it, and will be moved forward for insertions
-at or replacements across the position. Defaults to -1.
+Distinguishes different ways in which positions can be mapped.
 
-`mode`determines whether deletions should be
+`**[Simple](#state.MapMode.Simple)**`
 
-reported . It defaults to
+Map a position to a valid new position, even when its context was deleted.
 
-`MapMode.Simple`(don't report
-deletions).
+`**[TrackDel](#state.MapMode.TrackDel)**`
 
-touchesRange `(`from `:`number `,`to `⁠?:`number = from `) →`boolean `|`"cover" Check whether these changes touch a given range. When one of the
-changes entirely covers the range, the string
+Return null if deletion happens across the position.
 
-`"cover"`is
-returned.
+`**[TrackBefore](#state.MapMode.TrackBefore)**`
 
-toJSON `() →`readonly number `[]`Serialize this change desc to a JSON-representable value.
+Return null if the character _before_ the position is deleted.
 
-static fromJSON `(`json `:`any `) →`ChangeDesc Create a change desc from its JSON representation (as produced
-by
+`**[TrackAfter](#state.MapMode.TrackAfter)**`
 
-`toJSON`.
+Return null if the character _after_ the position is deleted.
 
-enum MapMode Distinguishes different ways in which positions can be mapped.
+#### `class` [ChangeSet](#state.ChangeSet) `extends [ChangeDesc](#state.ChangeDesc)`
 
-Simple Map a position to a valid new position, even when its context
-was deleted.
+A change set represents a group of modifications to a document. It stores the document length, and can only be applied to documents with exactly that length.
 
-TrackDel Return null if deletion happens across the position.
+`**[apply](#state.ChangeSet.apply)**([doc](#state.ChangeSet.apply^doc): [Text](#state.Text)) → [Text](#state.Text)`
 
-TrackBefore Return null if the character
+Apply the changes to a document, returning the modified document.
 
-before the position is deleted.
+`**[invert](#state.ChangeSet.invert)**([doc](#state.ChangeSet.invert^doc): [Text](#state.Text)) → [ChangeSet](#state.ChangeSet)`
 
-TrackAfter Return null if the character
+Given the document as it existed _before_ the changes, return a change set that represents the inverse of this set, which could be used to go from the document created by the changes back to the document as it existed before the changes.
 
-after the position is deleted.
+`**[compose](#state.ChangeSet.compose)**([other](#state.ChangeSet.compose^other): [ChangeSet](#state.ChangeSet)) → [ChangeSet](#state.ChangeSet)`
 
-class ChangeSet extends ChangeDesc A change set represents a group of modifications to a document. It
-stores the document length, and can only be applied to documents
-with exactly that length.
+Combine two subsequent change sets into a single set. `other` must start in the document produced by `this`. If `this` goes `docA` → `docB` and `other` represents `docB` → `docC`, the returned value will represent the change `docA` → `docC`.
 
-apply `(`doc `:`Text `) →`Text Apply the changes to a document, returning the modified
-document.
+`**[map](#state.ChangeSet.map)**([other](#state.ChangeSet.map^other): [ChangeDesc](#state.ChangeDesc), [before](#state.ChangeSet.map^before)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false) → [ChangeSet](#state.ChangeSet)`
 
-invert `(`doc `:`Text `) →`ChangeSet Given the document as it existed
+Given another change set starting in the same document, maps this change set over the other, producing a new change set that can be applied to the document produced by applying `other`. When `before` is `true`, order changes as if `this` comes before `other`, otherwise (the default) treat `other` as coming first.
 
-before the changes, return a
-change set that represents the inverse of this set, which could
-be used to go from the document created by the changes back to
-the document as it existed before the changes.
+Given two changes `A` and `B`, `A.compose(B.map(A))` and `B.compose(A.map(B, true))` will produce the same document. This provides a basic form of [operational transformation](https://en.wikipedia.org/wiki/Operational_transformation), and can be used for collaborative editing.
 
-compose `(`other `:`ChangeSet `) →`ChangeSet Combine two subsequent change sets into a single set.
+`**[iterChanges](#state.ChangeSet.iterChanges)**(  [f](#state.ChangeSet.iterChanges^f): fn(  [fromA](#state.ChangeSet.iterChanges^f^fromA): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [toA](#state.ChangeSet.iterChanges^f^toA): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [fromB](#state.ChangeSet.iterChanges^f^fromB): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [toB](#state.ChangeSet.iterChanges^f^toB): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [inserted](#state.ChangeSet.iterChanges^f^inserted): [Text](#state.Text)  ),  [individual](#state.ChangeSet.iterChanges^individual)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false  )`
 
-`other`must start in the document produced by
+Iterate over the changed ranges in the document, calling `f` for each, with the range in the original document (`fromA`\-`toA`) and the range that replaces it in the new document (`fromB`\-`toB`).
 
-`this`. If
+When `individual` is true, adjacent changes are reported separately.
 
-`this`goes
+`**[desc](#state.ChangeSet.desc)**: [ChangeDesc](#state.ChangeDesc)`
 
-`docA`→
+Get a [change description](#state.ChangeDesc) for this change set.
 
-`docB`and
+`**[toJSON](#state.ChangeSet.toJSON)**() → any`
 
-`other`represents
+Serialize this change set to a JSON-representable value.
 
-`docB`→
+`static **[of](#state.ChangeSet^of)**([changes](#state.ChangeSet^of^changes): [ChangeSpec](#state.ChangeSpec), [length](#state.ChangeSet^of^length): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [lineSep](#state.ChangeSet^of^lineSep)⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [ChangeSet](#state.ChangeSet)`
 
-`docC`, the
-returned value will represent the change
+Create a change set for the given changes, for a document of the given length, using `lineSep` as line separator.
 
-`docA`→
+`static **[empty](#state.ChangeSet^empty)**([length](#state.ChangeSet^empty^length): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [ChangeSet](#state.ChangeSet)`
 
-`docC`.
+Create an empty changeset of the given length.
 
-map `(`other `:`ChangeDesc `,`before `⁠?:`boolean = false `) →`ChangeSet Given another change set starting in the same document, maps this
-change set over the other, producing a new change set that can be
-applied to the document produced by applying
+`static **[fromJSON](#state.ChangeSet^fromJSON)**([json](#state.ChangeSet^fromJSON^json): any) → [ChangeSet](#state.ChangeSet)`
 
-`other`. When
+Create a changeset from its JSON representation (as produced by [`toJSON`](#state.ChangeSet.toJSON).
 
-`before`is
+#### `class` [Annotation](#state.Annotation)`<[T](#state.Annotation^T)>`
 
-`true`, order changes as if
+Annotations are tagged values that are used to add metadata to transactions in an extensible way. They should be used to model things that effect the entire transaction (such as its [time stamp](#state.Transaction%5Etime) or information about its [origin](#state.Transaction%5EuserEvent)). For effects that happen _alongside_ the other changes made by the transaction, [state effects](#state.StateEffect) are more appropriate.
 
-`this`comes before
+`**[type](#state.Annotation.type)**: [AnnotationType](#state.AnnotationType)<[T](#state.Annotation^T)>`
 
-`other`, otherwise (the default) treat
+The annotation type.
 
-`other`as coming first.
+`**[value](#state.Annotation.value)**: [T](#state.Annotation^T)`
 
-Given two changes
+The value of this annotation.
 
-`A`and
+`static **[define](#state.Annotation^define)**<[T](#state.Annotation^define^T)>() → [AnnotationType](#state.AnnotationType)<[T](#state.Annotation^define^T)>`
 
-`B`,
+Define a new type of annotation.
 
-`A.compose(B.map(A))`and
+#### `class` [AnnotationType](#state.AnnotationType)`<[T](#state.AnnotationType^T)>`
 
-`B.compose(A.map(B, true))`will produce the same document. This
-provides a basic form of
+Marker that identifies a type of [annotation](#state.Annotation).
 
-operational
-transformation ,
-and can be used for collaborative editing.
+`**[of](#state.AnnotationType.of)**([value](#state.AnnotationType.of^value): [T](#state.AnnotationType^T)) → [Annotation](#state.Annotation)<[T](#state.AnnotationType^T)>`
 
-iterChanges `(`f : fn ( fromA : number , toA : number , fromB : number , toB : number , inserted : Text ), individual ⁠?: boolean = false `)`Iterate over the changed ranges in the document, calling
+Create an instance of this annotation.
 
-`f`for
-each, with the range in the original document (
+#### `class` [StateEffect](#state.StateEffect)`<[Value](#state.StateEffect^Value)>`
 
-`fromA`-
+State effects can be used to represent additional effects associated with a [transaction](#state.Transaction.effects). They are often useful to model changes to custom [state fields](#state.StateField), when those changes aren't implicit in document or selection changes.
 
-`toA`)
-and the range that replaces it in the new document
-(
+`**[value](#state.StateEffect.value)**: [Value](#state.StateEffect^Value)`
 
-`fromB`-
+The value of this effect.
 
-`toB`).
+`**[map](#state.StateEffect.map)**([mapping](#state.StateEffect.map^mapping): [ChangeDesc](#state.ChangeDesc)) → [StateEffect](#state.StateEffect)<[Value](#state.StateEffect^Value)> | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-When
+Map this effect through a position mapping. Will return `undefined` when that ends up deleting the effect.
 
-`individual`is true, adjacent changes are reported
-separately.
+`**[is](#state.StateEffect.is)**<[T](#state.StateEffect.is^T)>([type](#state.StateEffect.is^type): [StateEffectType](#state.StateEffectType)<[T](#state.StateEffect.is^T)>) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-desc `:`ChangeDesc Get a
+Tells you whether this effect object is of a given [type](#state.StateEffectType).
 
-change description for this change
-set.
+`static **[define](#state.StateEffect^define)**<[Value](#state.StateEffect^define^Value) = null>([spec](#state.StateEffect^define^spec)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [StateEffectType](#state.StateEffectType)<[Value](#state.StateEffect^define^Value)>`
 
-toJSON `() →`any Serialize this change set to a JSON-representable value.
+Define a new effect type. The type parameter indicates the type of values that his effect holds. It should be a type that doesn't include `undefined`, since that is used in [mapping](#state.StateEffect.map) to indicate that an effect is removed.
 
-static of `(`changes `:`ChangeSpec `,`length `:`number `,`lineSep `⁠?:`string `) →`ChangeSet Create a change set for the given changes, for a document of the
-given length, using
+`**[spec](#state.StateEffect^define^spec)**`
 
-`lineSep`as line separator.
+`**[map](#state.StateEffect^define^spec.map)**⁠?: fn([value](#state.StateEffect^define^spec.map^value): [Value](#state.StateEffect^define^Value), [mapping](#state.StateEffect^define^spec.map^mapping): [ChangeDesc](#state.ChangeDesc)) → [Value](#state.StateEffect^define^Value) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-static empty `(`length `:`number `) →`ChangeSet Create an empty changeset of the given length.
+Provides a way to map an effect like this through a position mapping. When not given, the effects will simply not be mapped. When the function returns `undefined`, that means the mapping deletes the effect.
 
-static fromJSON `(`json `:`any `) →`ChangeSet Create a changeset from its JSON representation (as produced by
+`static **[mapEffects](#state.StateEffect^mapEffects)**(  [effects](#state.StateEffect^mapEffects^effects): readonly [StateEffect](#state.StateEffect)<any>[],  [mapping](#state.StateEffect^mapEffects^mapping): [ChangeDesc](#state.ChangeDesc)  ) → readonly [StateEffect](#state.StateEffect)<any>[]`
 
-`toJSON`.
+Map an array of effects through a change set.
 
-class Annotation `<`T `>`Annotations are tagged values that are used to add metadata to
-transactions in an extensible way. They should be used to model
-things that effect the entire transaction (such as its
+`static **[reconfigure](#state.StateEffect^reconfigure)**: [StateEffectType](#state.StateEffectType)<[Extension](#state.Extension)>`
 
-time
-stamp or information about its
+This effect can be used to reconfigure the root extensions of the editor. Doing this will discard any extensions [appended](#state.StateEffect%5EappendConfig), but does not reset the content of [reconfigured](#state.Compartment.reconfigure) compartments.
 
-origin ). For effects that happen
+`static **[appendConfig](#state.StateEffect^appendConfig)**: [StateEffectType](#state.StateEffectType)<[Extension](#state.Extension)>`
 
-alongside the other changes made by the transaction,
+Append extensions to the top-level configuration of the editor.
 
-state
-effects are more appropriate.
+#### `class` [StateEffectType](#state.StateEffectType)`<[Value](#state.StateEffectType^Value)>`
 
-type `:`AnnotationType `<`T `>`The annotation type.
+Representation of a type of state effect. Defined with [`StateEffect.define`](#state.StateEffect%5Edefine).
 
-value `:`T The value of this annotation.
+`**[of](#state.StateEffectType.of)**([value](#state.StateEffectType.of^value): [Value](#state.StateEffectType^Value)) → [StateEffect](#state.StateEffect)<[Value](#state.StateEffectType^Value)>`
 
-static define `<`T `>() →`AnnotationType `<`T `>`Define a new type of annotation.
-
-class AnnotationType `<`T `>`Marker that identifies a type of
-
-annotation .
-
-of `(`value `:`T `) →`Annotation `<`T `>`Create an instance of this annotation.
-
-class StateEffect `<`Value `>`State effects can be used to represent additional effects
-associated with a
-
-transaction . They
-are often useful to model changes to custom
-
-state
-fields , when those changes aren't implicit in
-document or selection changes.
-
-value `:`Value The value of this effect.
-
-map `(`mapping `:`ChangeDesc `) →`StateEffect `<`Value `> |`undefined Map this effect through a position mapping. Will return
-
-`undefined`when that ends up deleting the effect.
-
-is `<`T `>(`type `:`StateEffectType `<`T `>) →`boolean Tells you whether this effect object is of a given
-
-type .
-
-static define `<`Value `= null>(`spec `⁠?:`Object = {} `) →`StateEffectType `<`Value `>`Define a new effect type. The type parameter indicates the type
-of values that his effect holds. It should be a type that
-doesn't include
-
-`undefined`, since that is used in
-
-mapping to indicate that an effect is
-removed.
-
-spec map `⁠?:`fn `(`value `:`Value `,`mapping `:`ChangeDesc `) →`Value `|`undefined Provides a way to map an effect like this through a position
-mapping. When not given, the effects will simply not be mapped.
-When the function returns
-
-`undefined`, that means the mapping
-deletes the effect.
-
-static mapEffects `(`effects : readonly StateEffect < any >[], mapping : ChangeDesc `) →`readonly StateEffect `<`any `>[]`Map an array of effects through a change set.
-
-static reconfigure `:`StateEffectType `<`Extension `>`This effect can be used to reconfigure the root extensions of
-the editor. Doing this will discard any extensions
-
-appended , but does not reset
-the content of
-
-reconfigured compartments.
-
-static appendConfig `:`StateEffectType `<`Extension `>`Append extensions to the top-level configuration of the editor.
-
-class StateEffectType `<`Value `>`Representation of a type of state effect. Defined with
-
-`StateEffect.define`.
-
-of `(`value `:`Value `) →`StateEffect `<`Value `>`Create a
-
-state effect instance of this
-type.
+Create a [state effect](#state.StateEffect) instance of this type.
 
 ### Extending Editor State
 
-The following are some types and mechanisms used when writing
-extensions for the editor state.
+The following are some types and mechanisms used when writing extensions for the editor state.
 
-type StateCommand `=`fn `(`target : { state : EditorState , dispatch : fn ( transaction : Transaction )} `) →`boolean Subtype of
+`type **[StateCommand](#state.StateCommand)** = fn(  [target](#state.StateCommand^target): {state: [EditorState](#state.EditorState), dispatch: fn([transaction](#state.StateCommand^target.dispatch^transaction): [Transaction](#state.Transaction))}  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`Command`that doesn't require access
-to the actual editor view. Mostly useful to define commands that
-can be run and tested outside of a browser environment.
+Subtype of [`Command`](#view.Command) that doesn't require access to the actual editor view. Mostly useful to define commands that can be run and tested outside of a browser environment.
 
-type Extension `= {`extension `:`Extension `} |`readonly Extension `[]`Extension values can be
+`type **[Extension](#state.Extension)** = {extension: [Extension](#state.Extension)} | readonly [Extension](#state.Extension)[]`
 
-provided when creating a
-state to attach various kinds of configuration and behavior
-information. They can either be built-in extension-providing
-objects, such as
+Extension values can be [provided](#state.EditorStateConfig.extensions) when creating a state to attach various kinds of configuration and behavior information. They can either be built-in extension-providing objects, such as [state fields](#state.StateField) or [facet providers](#state.Facet.of), or objects with an extension in its `extension` property. Extensions can be nested in arrays arbitrarily deep—they will be flattened when processed.
 
-state fields or
+#### `class` [StateField](#state.StateField)`<[Value](#state.StateField^Value)>`
 
-facet
-providers , or objects with an extension in its
+Fields can store additional information in an editor state, and keep it in sync with the rest of the state.
 
-`extension`property. Extensions can be nested in arrays
-arbitrarily deep—they will be flattened when processed.
+`**[init](#state.StateField.init)**([create](#state.StateField.init^create): fn([state](#state.StateField.init^create^state): [EditorState](#state.EditorState)) → [Value](#state.StateField^Value)) → [Extension](#state.Extension)`
 
-class StateField `<`Value `>`Fields can store additional information in an editor state, and
-keep it in sync with the rest of the state.
+Returns an extension that enables this field and overrides the way it is initialized. Can be useful when you need to provide a non-default starting value for the field.
 
-init `(`create `:`fn `(`state `:`EditorState `) →`Value `) →`Extension Returns an extension that enables this field and overrides the
-way it is initialized. Can be useful when you need to provide a
-non-default starting value for the field.
+`**[extension](#state.StateField.extension)**: [Extension](#state.Extension)`
 
-extension `:`Extension State field instances can be used as
+State field instances can be used as [`Extension`](#state.Extension) values to enable the field in a given state.
 
-`Extension`values to enable the field in a
-given state.
+`static **[define](#state.StateField^define)**<[Value](#state.StateField^define^Value)>([config](#state.StateField^define^config): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [StateField](#state.StateField)<[Value](#state.StateField^define^Value)>`
 
-static define `<`Value `>(`config `:`Object `) →`StateField `<`Value `>`Define a state field.
+Define a state field.
 
-config create `(`state `:`EditorState `) →`Value Creates the initial value for the field when a state is created.
+`**[config](#state.StateField^define^config)**`
 
-update `(`value `:`Value `,`transaction `:`Transaction `) →`Value Compute a new value from the field's previous value and a
+`**[create](#state.StateField^define^config.create)**([state](#state.StateField^define^config.create^state): [EditorState](#state.EditorState)) → [Value](#state.StateField^define^Value)`
 
-transaction .
+Creates the initial value for the field when a state is created.
 
-compare `⁠?:`fn `(`a `:`Value `,`b `:`Value `) →`boolean Compare two values of the field, returning
+`**[update](#state.StateField^define^config.update)**([value](#state.StateField^define^config.update^value): [Value](#state.StateField^define^Value), [transaction](#state.StateField^define^config.update^transaction): [Transaction](#state.Transaction)) → [Value](#state.StateField^define^Value)`
 
-`true`when they are
-the same. This is used to avoid recomputing facets that depend
-on the field when its value did not change. Defaults to using
+Compute a new value from the field's previous value and a [transaction](#state.Transaction).
 
-`===`.
+`**[compare](#state.StateField^define^config.compare)**⁠?: fn([a](#state.StateField^define^config.compare^a): [Value](#state.StateField^define^Value), [b](#state.StateField^define^config.compare^b): [Value](#state.StateField^define^Value)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-provide `⁠?:`fn `(`field `:`StateField `<`Value `>) →`Extension Provide extensions based on this field. The given function will
-be called once with the initialized field. It will usually want
-to call some facet's
+Compare two values of the field, returning `true` when they are the same. This is used to avoid recomputing facets that depend on the field when its value did not change. Defaults to using `===`.
 
-`from`method to
-create facet inputs from this field, but can also return other
-extensions that should be enabled when the field is present in a
-configuration.
+`**[provide](#state.StateField^define^config.provide)**⁠?: fn([field](#state.StateField^define^config.provide^field): [StateField](#state.StateField)<[Value](#state.StateField^define^Value)>) → [Extension](#state.Extension)`
 
-toJSON `⁠?:`fn `(`value `:`Value `,`state `:`EditorState `) →`any A function used to serialize this field's content to JSON. Only
-necessary when this field is included in the argument to
+Provide extensions based on this field. The given function will be called once with the initialized field. It will usually want to call some facet's [`from`](#state.Facet.from) method to create facet inputs from this field, but can also return other extensions that should be enabled when the field is present in a configuration.
 
-`EditorState.toJSON`.
+`**[toJSON](#state.StateField^define^config.toJSON)**⁠?: fn([value](#state.StateField^define^config.toJSON^value): [Value](#state.StateField^define^Value), [state](#state.StateField^define^config.toJSON^state): [EditorState](#state.EditorState)) → any`
 
-fromJSON `⁠?:`fn `(`json `:`any `,`state `:`EditorState `) →`Value A function that deserializes the JSON representation of this
-field's content.
+A function used to serialize this field's content to JSON. Only necessary when this field is included in the argument to [`EditorState.toJSON`](#state.EditorState.toJSON).
 
-class Facet `<`Input `,`Output `= readonly Input[]>`implements FacetReader `<`Output `>`A facet is a labeled value that is associated with an editor
-state. It takes inputs from any number of extensions, and combines
-those into a single output value.
+`**[fromJSON](#state.StateField^define^config.fromJSON)**⁠?: fn([json](#state.StateField^define^config.fromJSON^json): any, [state](#state.StateField^define^config.fromJSON^state): [EditorState](#state.EditorState)) → [Value](#state.StateField^define^Value)`
 
-Examples of uses of facets are the
+A function that deserializes the JSON representation of this field's content.
 
-tab
-size ,
+#### `class` [Facet](#state.Facet)`<[Input](#state.Facet^Input), [Output](#state.Facet^Output) = readonly Input[]>` `implements [FacetReader](#state.FacetReader)<[Output](#state.Facet^Output)>`
 
-editor
-attributes , and
+A facet is a labeled value that is associated with an editor state. It takes inputs from any number of extensions, and combines those into a single output value.
 
-update
-listeners .
+Examples of uses of facets are the [tab size](#state.EditorState%5EtabSize), [editor attributes](#view.EditorView%5EeditorAttributes), and [update listeners](#view.EditorView%5EupdateListener).
 
-Note that
+Note that `Facet` instances can be used anywhere where [`FacetReader`](#state.FacetReader) is expected.
 
-`Facet`instances can be used anywhere where
+`**[reader](#state.Facet.reader)**: [FacetReader](#state.FacetReader)<[Output](#state.Facet^Output)>`
 
-`FacetReader`is expected.
+Returns a facet reader for this facet, which can be used to [read](#state.EditorState.facet) it but not to define values for it.
 
-reader `:`FacetReader `<`Output `>`Returns a facet reader for this facet, which can be used to
+`**[of](#state.Facet.of)**([value](#state.Facet.of^value): [Input](#state.Facet^Input)) → [Extension](#state.Extension)`
 
-read it but not to define values for it.
+Returns an extension that adds the given value to this facet.
 
-of `(`value `:`Input `) →`Extension Returns an extension that adds the given value to this facet.
+`**[compute](#state.Facet.compute)**(  [deps](#state.Facet.compute^deps): readonly ([StateField](#state.StateField)<any> | "doc" | "selection" | [FacetReader](#state.FacetReader)<any>)[],  [get](#state.Facet.compute^get): fn([state](#state.Facet.compute^get^state): [EditorState](#state.EditorState)) → [Input](#state.Facet^Input)  ) → [Extension](#state.Extension)`
 
-compute `(`deps : readonly ( StateField < any > | "doc" | "selection" | FacetReader < any >)[], get : fn ( state : EditorState ) → Input `) →`Extension Create an extension that computes a value for the facet from a
-state. You must take care to declare the parts of the state that
-this value depends on, since your function is only called again
-for a new state when one of those parts changed.
+Create an extension that computes a value for the facet from a state. You must take care to declare the parts of the state that this value depends on, since your function is only called again for a new state when one of those parts changed.
 
-In cases where your value depends only on a single field, you'll
-want to use the
+In cases where your value depends only on a single field, you'll want to use the [`from`](#state.Facet.from) method instead.
 
-`from`method instead.
+`**[computeN](#state.Facet.computeN)**(  [deps](#state.Facet.computeN^deps): readonly ([StateField](#state.StateField)<any> | "doc" | "selection" | [FacetReader](#state.FacetReader)<any>)[],  [get](#state.Facet.computeN^get): fn([state](#state.Facet.computeN^get^state): [EditorState](#state.EditorState)) → readonly [Input](#state.Facet^Input)[]  ) → [Extension](#state.Extension)`
 
-computeN `(`deps : readonly ( StateField < any > | "doc" | "selection" | FacetReader < any >)[], get : fn ( state : EditorState ) → readonly Input [] `) →`Extension Create an extension that computes zero or more values for this
-facet from a state.
+Create an extension that computes zero or more values for this facet from a state.
 
-from `<`T extends Input `>(`field `:`StateField `<`T `>) →`Extension from `<`T `>(`field `:`StateField `<`T `>,`get `:`fn `(`value `:`T `) →`Input `) →`Extension Shorthand method for registering a facet source with a state
-field as input. If the field's type corresponds to this facet's
-input type, the getter function can be omitted. If given, it
-will be used to retrieve the input from the field value.
+`**[from](#state.Facet.from)**<[T](#state.Facet.from^T) extends [Input](#state.Facet^Input)>([field](#state.Facet.from^field): [StateField](#state.StateField)<[T](#state.Facet.from^T)>) → [Extension](#state.Extension)`
 
-static define `<`Input `,`Output `= readonly Input[]>(`config `⁠?:`Object = {} `) →`Facet `<`Input `,`Output `>`Define a new facet.
+`**[from](#state.Facet.from)**<[T](#state.Facet.from^T)>([field](#state.Facet.from^field): [StateField](#state.StateField)<[T](#state.Facet.from^T)>, [get](#state.Facet.from^get): fn([value](#state.Facet.from^get^value): [T](#state.Facet.from^T)) → [Input](#state.Facet^Input)) → [Extension](#state.Extension)`
 
-config combine `⁠?:`fn `(`value `:`readonly Input `[]) →`Output How to combine the input values into a single output value. When
-not given, the array of input values becomes the output. This
-function will immediately be called on creating the facet, with
-an empty array, to compute the facet's default value when no
-inputs are present.
+Shorthand method for registering a facet source with a state field as input. If the field's type corresponds to this facet's input type, the getter function can be omitted. If given, it will be used to retrieve the input from the field value.
 
-compare `⁠?:`fn `(`a `:`Output `,`b `:`Output `) →`boolean How to compare output values to determine whether the value of
-the facet changed. Defaults to comparing by
+`static **[define](#state.Facet^define)**<[Input](#state.Facet^define^Input), [Output](#state.Facet^define^Output) = readonly Input[]>([config](#state.Facet^define^config)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [Facet](#state.Facet)<[Input](#state.Facet^define^Input), [Output](#state.Facet^define^Output)>`
 
-`===`or, if no
+Define a new facet.
 
-`combine`function was given, comparing each element of the
-array with
+`**[config](#state.Facet^define^config)**`
 
-`===`.
+`**[combine](#state.Facet^define^config.combine)**⁠?: fn([value](#state.Facet^define^config.combine^value): readonly [Input](#state.Facet^define^Input)[]) → [Output](#state.Facet^define^Output)`
 
-compareInput `⁠?:`fn `(`a `:`Input `,`b `:`Input `) →`boolean How to compare input values to avoid recomputing the output
-value when no inputs changed. Defaults to comparing with
+How to combine the input values into a single output value. When not given, the array of input values becomes the output. This function will immediately be called on creating the facet, with an empty array, to compute the facet's default value when no inputs are present.
 
-`===`.
+`**[compare](#state.Facet^define^config.compare)**⁠?: fn([a](#state.Facet^define^config.compare^a): [Output](#state.Facet^define^Output), [b](#state.Facet^define^config.compare^b): [Output](#state.Facet^define^Output)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-static `⁠?:`boolean Forbids dynamic inputs to this facet.
+How to compare output values to determine whether the value of the facet changed. Defaults to comparing by `===` or, if no `combine` function was given, comparing each element of the array with `===`.
 
-enables `⁠?:`Extension `|`fn `(`self `:`Facet `<`Input `,`Output `>) →`Extension If given, these extension(s) (or the result of calling the given
-function with the facet) will be added to any state where this
-facet is provided. (Note that, while a facet's default value can
-be read from a state even if the facet wasn't present in the
-state at all, these extensions won't be added in that
-situation.)
+`**[compareInput](#state.Facet^define^config.compareInput)**⁠?: fn([a](#state.Facet^define^config.compareInput^a): [Input](#state.Facet^define^Input), [b](#state.Facet^define^config.compareInput^b): [Input](#state.Facet^define^Input)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-type FacetReader `<`Output `>`A facet reader can be used to fetch the value of a facet, through
+How to compare input values to avoid recomputing the output value when no inputs changed. Defaults to comparing with `===`.
 
-`EditorState.facet`or as a dependency
-in
+`**[static](#state.Facet^define^config.static)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`Facet.compute`, but not to define new
-values for the facet.
+Forbids dynamic inputs to this facet.
 
-tag `:`Output Dummy tag that makes sure TypeScript doesn't consider all object
-types as conforming to this type. Not actually present on the
-object.
+`**[enables](#state.Facet^define^config.enables)**⁠?: [Extension](#state.Extension) | fn([self](#state.Facet^define^config.enables^self): [Facet](#state.Facet)<[Input](#state.Facet^define^Input), [Output](#state.Facet^define^Output)>) → [Extension](#state.Extension)`
 
-Prec `:`Object By default extensions are registered in the order they are found
-in the flattened form of nested array that was provided.
-Individual extension values can be assigned a precedence to
-override this. Extensions that do not have a precedence set get
-the precedence of the nearest parent with a precedence, or
+If given, these extension(s) (or the result of calling the given function with the facet) will be added to any state where this facet is provided. (Note that, while a facet's default value can be read from a state even if the facet wasn't present in the state at all, these extensions won't be added in that situation.)
 
-`default`if there is no such parent. The
-final ordering of extensions is determined by first sorting by
-precedence and then by order within each precedence.
+#### `type` [FacetReader](#state.FacetReader)`<[Output](#state.FacetReader^Output)>`
 
-highest `(`ext `:`Extension `) →`Extension The highest precedence level, for extensions that should end up
-near the start of the precedence ordering.
+A facet reader can be used to fetch the value of a facet, through [`EditorState.facet`](#state.EditorState.facet) or as a dependency in [`Facet.compute`](#state.Facet.compute), but not to define new values for the facet.
 
-high `(`ext `:`Extension `) →`Extension A higher-than-default precedence, for extensions that should
-come before those with default precedence.
+`**[tag](#state.FacetReader.tag)**: [Output](#state.FacetReader^Output)`
 
-default `(`ext `:`Extension `) →`Extension The default precedence, which is also used for extensions
-without an explicit precedence.
+Dummy tag that makes sure TypeScript doesn't consider all object types as conforming to this type. Not actually present on the object.
 
-low `(`ext `:`Extension `) →`Extension A lower-than-default precedence.
+`**[Prec](#state.Prec)**: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)`
 
-lowest `(`ext `:`Extension `) →`Extension The lowest precedence level. Meant for things that should end up
-near the end of the extension order.
+By default extensions are registered in the order they are found in the flattened form of nested array that was provided. Individual extension values can be assigned a precedence to override this. Extensions that do not have a precedence set get the precedence of the nearest parent with a precedence, or [`default`](#state.Prec.default) if there is no such parent. The final ordering of extensions is determined by first sorting by precedence and then by order within each precedence.
 
-class Compartment Extension compartments can be used to make a configuration
-dynamic. By
+`**[highest](#state.Prec.highest)**([ext](#state.Prec.highest^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
 
-wrapping part of your
-configuration in a compartment, you can later
+The highest precedence level, for extensions that should end up near the start of the precedence ordering.
 
-replace that part through a
-transaction.
+`**[high](#state.Prec.high)**([ext](#state.Prec.high^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
 
-of `(`ext `:`Extension `) →`Extension Create an instance of this compartment to add to your
+A higher-than-default precedence, for extensions that should come before those with default precedence.
 
-state
-configuration .
+`**[default](#state.Prec.default)**([ext](#state.Prec.default^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
 
-reconfigure `(`content `:`Extension `) →`StateEffect `<`unknown `>`Create an
+The default precedence, which is also used for extensions without an explicit precedence.
 
-effect that
-reconfigures this compartment.
+`**[low](#state.Prec.low)**([ext](#state.Prec.low^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
 
-get `(`state `:`EditorState `) →`Extension `|`undefined Get the current content of the compartment in the state, or
+A lower-than-default precedence.
 
-`undefined`if it isn't present.
+`**[lowest](#state.Prec.lowest)**([ext](#state.Prec.lowest^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
+
+The lowest precedence level. Meant for things that should end up near the end of the extension order.
+
+#### `class` [Compartment](#state.Compartment)
+
+Extension compartments can be used to make a configuration dynamic. By [wrapping](#state.Compartment.of) part of your configuration in a compartment, you can later [replace](#state.Compartment.reconfigure) that part through a transaction.
+
+`**[of](#state.Compartment.of)**([ext](#state.Compartment.of^ext): [Extension](#state.Extension)) → [Extension](#state.Extension)`
+
+Create an instance of this compartment to add to your [state configuration](#state.EditorStateConfig.extensions).
+
+`**[reconfigure](#state.Compartment.reconfigure)**([content](#state.Compartment.reconfigure^content): [Extension](#state.Extension)) → [StateEffect](#state.StateEffect)<unknown>`
+
+Create an [effect](#state.TransactionSpec.effects) that reconfigures this compartment.
+
+`**[get](#state.Compartment.get)**([state](#state.Compartment.get^state): [EditorState](#state.EditorState)) → [Extension](#state.Extension) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
+
+Get the current content of the compartment in the state, or `undefined` if it isn't present.
 
 ### Range Sets
 
-Range sets provide a data structure that can hold a collection of
-tagged, possibly overlapping
+Range sets provide a data structure that can hold a collection of tagged, possibly overlapping [ranges](#state.Range) in such a way that they can efficiently be [mapped](#state.RangeSet.map) though document changes. They are used for storing things like [decorations](#view.Decoration) or [gutter markers](#view.GutterMarker).
 
-ranges in such a way
-that they can efficiently be
+#### `abstract class` [RangeValue](#state.RangeValue)
 
-mapped though
-document changes. They are used for storing things like
+Each range is associated with a value, which must inherit from this class.
 
-decorations or
+`**[eq](#state.RangeValue.eq)**([other](#state.RangeValue.eq^other): [RangeValue](#state.RangeValue)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-gutter
-markers .
+Compare this value with another value. Used when comparing rangesets. The default implementation compares by identity. Unless you are only creating a fixed number of unique instances of your value type, it is a good idea to implement this properly.
 
-abstract class RangeValue Each range is associated with a value, which must inherit from
-this class.
+`**[startSide](#state.RangeValue.startSide)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-eq `(`other `:`RangeValue `) →`boolean Compare this value with another value. Used when comparing
-rangesets. The default implementation compares by identity.
-Unless you are only creating a fixed number of unique instances
-of your value type, it is a good idea to implement this
-properly.
+The bias value at the start of the range. Determines how the range is positioned relative to other ranges starting at this position. Defaults to 0.
 
-startSide `:`number The bias value at the start of the range. Determines how the
-range is positioned relative to other ranges starting at this
-position. Defaults to 0.
+`**[endSide](#state.RangeValue.endSide)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-endSide `:`number The bias value at the end of the range. Defaults to 0.
+The bias value at the end of the range. Defaults to 0.
 
-mapMode `:`MapMode The mode with which the location of the range should be mapped
-when its
+`**[mapMode](#state.RangeValue.mapMode)**: [MapMode](#state.MapMode)`
 
-`from`and
+The mode with which the location of the range should be mapped when its `from` and `to` are the same, to decide whether a change deletes the range. Defaults to `MapMode.TrackDel`.
 
-`to`are the same, to decide whether a
-change deletes the range. Defaults to
+`**[point](#state.RangeValue.point)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`MapMode.TrackDel`.
+Determines whether this value marks a point range. Regular ranges affect the part of the document they cover, and are meaningless when empty. Point ranges have a meaning on their own. When non-empty, a point range is treated as atomic and shadows any ranges contained in it.
 
-point `:`boolean Determines whether this value marks a point range. Regular
-ranges affect the part of the document they cover, and are
-meaningless when empty. Point ranges have a meaning on their
-own. When non-empty, a point range is treated as atomic and
-shadows any ranges contained in it.
+`**[range](#state.RangeValue.range)**([from](#state.RangeValue.range^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.RangeValue.range^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = from) → [Range](#state.Range)<[RangeValue](#state.RangeValue)>`
 
-range `(`from `:`number `,`to `⁠?:`number = from `) →`Range `<`RangeValue `>`Create a
+Create a [range](#state.Range) with this value.
 
-range with this value.
+#### `class` [Range](#state.Range)`<[T](#state.Range^T) extends [RangeValue](#state.RangeValue)>`
 
-class Range `<`T extends RangeValue `>`A range associates a value with a range of positions.
+A range associates a value with a range of positions.
 
-from `:`number The range's start position.
+`**[from](#state.Range.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-to `:`number Its end position.
+The range's start position.
 
-value `:`T The value associated with this range.
+`**[to](#state.Range.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-class RangeSet `<`T extends RangeValue `>`A range set stores a collection of
+Its end position.
 
-ranges in a
-way that makes them efficient to
+`**[value](#state.Range.value)**: [T](#state.Range^T)`
 
-map and
+The value associated with this range.
 
-update . This is an immutable data
-structure.
+#### `class` [RangeSet](#state.RangeSet)`<[T](#state.RangeSet^T) extends [RangeValue](#state.RangeValue)>`
 
-size `:`number The number of ranges in the set.
+A range set stores a collection of [ranges](#state.Range) in a way that makes them efficient to [map](#state.RangeSet.map) and [update](#state.RangeSet.update). This is an immutable data structure.
 
-update `<`U extends T `>(`updateSpec `:`Object `) →`RangeSet `<`T `>`Update the range set, optionally adding new ranges or filtering
-out existing ones.
+`**[size](#state.RangeSet.size)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-(Note: The type parameter is just there as a kludge to work
-around TypeScript variance issues that prevented
+The number of ranges in the set.
 
-`RangeSet<X>`from being a subtype of
+`**[update](#state.RangeSet.update)**<[U](#state.RangeSet.update^U) extends [T](#state.RangeSet^T)>([updateSpec](#state.RangeSet.update^updateSpec): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [RangeSet](#state.RangeSet)<[T](#state.RangeSet^T)>`
 
-`RangeSet<Y>`when
+Update the range set, optionally adding new ranges or filtering out existing ones.
 
-`X`is a subtype of
+(Note: The type parameter is just there as a kludge to work around TypeScript variance issues that prevented `RangeSet<X>` from being a subtype of `RangeSet<Y>` when `X` is a subtype of `Y`.)
 
-`Y`.)
+`**[updateSpec](#state.RangeSet.update^updateSpec)**`
 
-updateSpec add `⁠?:`readonly Range `<`U `>[]`An array of ranges to add. If given, this should be sorted by
+`**[add](#state.RangeSet.update^updateSpec.add)**⁠?: readonly [Range](#state.Range)<[U](#state.RangeSet.update^U)>[]`
 
-`from`position and
+An array of ranges to add. If given, this should be sorted by `from` position and `startSide` unless [`sort`](#state.RangeSet.update%5EupdateSpec.sort) is given as `true`.
 
-`startSide`unless
+`**[sort](#state.RangeSet.update^updateSpec.sort)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`sort`is given as
+Indicates whether the library should sort the ranges in `add`. Defaults to `false`.
 
-`true`.
+`**[filter](#state.RangeSet.update^updateSpec.filter)**⁠?: fn([from](#state.RangeSet.update^updateSpec.filter^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.RangeSet.update^updateSpec.filter^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [value](#state.RangeSet.update^updateSpec.filter^value): [U](#state.RangeSet.update^U)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-sort `⁠?:`boolean Indicates whether the library should sort the ranges in
+Filter the ranges already in the set. Only those for which this function returns `true` are kept.
 
-`add`.
-Defaults to
+`**[filterFrom](#state.RangeSet.update^updateSpec.filterFrom)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`false`.
+Can be used to limit the range on which the filter is applied. Filtering only a small range, as opposed to the entire set, can make updates cheaper.
 
-filter `⁠?:`fn `(`from `:`number `,`to `:`number `,`value `:`U `) →`boolean Filter the ranges already in the set. Only those for which this
-function returns
+`**[filterTo](#state.RangeSet.update^updateSpec.filterTo)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`true`are kept.
+The end position to apply the filter to.
 
-filterFrom `⁠?:`number Can be used to limit the range on which the filter is
-applied. Filtering only a small range, as opposed to the entire
-set, can make updates cheaper.
+`**[map](#state.RangeSet.map)**([changes](#state.RangeSet.map^changes): [ChangeDesc](#state.ChangeDesc)) → [RangeSet](#state.RangeSet)<[T](#state.RangeSet^T)>`
 
-filterTo `⁠?:`number The end position to apply the filter to.
+Map this range set through a set of changes, return the new set.
 
-map `(`changes `:`ChangeDesc `) →`RangeSet `<`T `>`Map this range set through a set of changes, return the new set.
+`**[between](#state.RangeSet.between)**(  [from](#state.RangeSet.between^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.RangeSet.between^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [f](#state.RangeSet.between^f): fn([from](#state.RangeSet.between^f^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.RangeSet.between^f^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [value](#state.RangeSet.between^f^value): [T](#state.RangeSet^T)) → [false](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)  )`
 
-between `(`from : number , to : number , f : fn ( from : number , to : number , value : T ) → false | undefined `)`Iterate over the ranges that touch the region
+Iterate over the ranges that touch the region `from` to `to`, calling `f` for each. There is no guarantee that the ranges will be reported in any specific order. When the callback returns `false`, iteration stops.
 
-`from`to
+`**[iter](#state.RangeSet.iter)**([from](#state.RangeSet.iter^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0) → [RangeCursor](#state.RangeCursor)<[T](#state.RangeSet^T)>`
 
-`to`,
-calling
+Iterate over the ranges in this set, in order, including all ranges that end at or after `from`.
 
-`f`for each. There is no guarantee that the ranges will
-be reported in any specific order. When the callback returns
+`static **[iter](#state.RangeSet^iter)**<[T](#state.RangeSet^iter^T) extends [RangeValue](#state.RangeValue)>([sets](#state.RangeSet^iter^sets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^iter^T)>[], [from](#state.RangeSet^iter^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0) → [RangeCursor](#state.RangeCursor)<[T](#state.RangeSet^iter^T)>`
 
-`false`, iteration stops.
+Iterate over the ranges in a collection of sets, in order, starting from `from`.
 
-iter `(`from `⁠?:`number = 0 `) →`RangeCursor `<`T `>`Iterate over the ranges in this set, in order, including all
-ranges that end at or after
+`static **[compare](#state.RangeSet^compare)**<[T](#state.RangeSet^compare^T) extends [RangeValue](#state.RangeValue)>(  [oldSets](#state.RangeSet^compare^oldSets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^compare^T)>[],  [newSets](#state.RangeSet^compare^newSets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^compare^T)>[],  textDiff: [ChangeDesc](#state.ChangeDesc),  [comparator](#state.RangeSet^compare^comparator): [RangeComparator](#state.RangeComparator)<[T](#state.RangeSet^compare^T)>,  minPointSize⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = -1  )`
 
-`from`.
+Iterate over two groups of sets, calling methods on `comparator` to notify it of possible differences.
 
-static iter `<`T extends RangeValue `>(`sets `:`readonly RangeSet `<`T `>[],`from `⁠?:`number = 0 `) →`RangeCursor `<`T `>`Iterate over the ranges in a collection of sets, in order,
-starting from
+`**[textDiff](#state.RangeSet^compare^textDiff)**`
 
-`from`.
+This indicates how the underlying data changed between these ranges, and is needed to synchronize the iteration.
 
-static compare `<`T extends RangeValue `>(`oldSets : readonly RangeSet < T >[], newSets : readonly RangeSet < T >[], textDiff : ChangeDesc , comparator : RangeComparator < T >, minPointSize ⁠?: number = -1 `)`Iterate over two groups of sets, calling methods on
+`**[minPointSize](#state.RangeSet^compare^minPointSize)**`
 
-`comparator`to notify it of possible differences.
+Can be used to ignore all non-point ranges, and points below the given size. When -1, all ranges are compared.
 
-textDiff This indicates how the underlying data changed between these
-ranges, and is needed to synchronize the iteration.
+`static **[eq](#state.RangeSet^eq)**<[T](#state.RangeSet^eq^T) extends [RangeValue](#state.RangeValue)>(  [oldSets](#state.RangeSet^eq^oldSets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^eq^T)>[],  [newSets](#state.RangeSet^eq^newSets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^eq^T)>[],  [from](#state.RangeSet^eq^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0,  [to](#state.RangeSet^eq^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-minPointSize Can be used to ignore all non-point ranges, and points below
-the given size. When -1, all ranges are compared.
+Compare the contents of two groups of range sets, returning true if they are equivalent in the given range.
 
-static eq `<`T extends RangeValue `>(`oldSets : readonly RangeSet < T >[], newSets : readonly RangeSet < T >[], from ⁠?: number = 0 , to ⁠?: number `) →`boolean Compare the contents of two groups of range sets, returning true
-if they are equivalent in the given range.
+`static **[spans](#state.RangeSet^spans)**<[T](#state.RangeSet^spans^T) extends [RangeValue](#state.RangeValue)>(  [sets](#state.RangeSet^spans^sets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^spans^T)>[],  [from](#state.RangeSet^spans^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.RangeSet^spans^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [iterator](#state.RangeSet^spans^iterator): [SpanIterator](#state.SpanIterator)<[T](#state.RangeSet^spans^T)>,  minPointSize⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = -1  ) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static spans `<`T extends RangeValue `>(`sets : readonly RangeSet < T >[], from : number , to : number , iterator : SpanIterator < T >, minPointSize ⁠?: number = -1 `) →`number Iterate over a group of range sets at the same time, notifying
-the iterator about the ranges covering every given piece of
-content. Returns the open count (see
+Iterate over a group of range sets at the same time, notifying the iterator about the ranges covering every given piece of content. Returns the open count (see [`SpanIterator.span`](#state.SpanIterator.span)) at the end of the iteration.
 
-`SpanIterator.span`) at the end
-of the iteration.
+`**[minPointSize](#state.RangeSet^spans^minPointSize)**`
 
-minPointSize When given and greater than -1, only points of at least this
-size are taken into account.
+When given and greater than -1, only points of at least this size are taken into account.
 
-static of `<`T extends RangeValue `>(`ranges : readonly Range < T >[] | Range < T >, sort ⁠?: boolean = false `) →`RangeSet `<`T `>`Create a range set for the given range or array of ranges. By
-default, this expects the ranges to be
+`static **[of](#state.RangeSet^of)**<[T](#state.RangeSet^of^T) extends [RangeValue](#state.RangeValue)>(  [ranges](#state.RangeSet^of^ranges): readonly [Range](#state.Range)<[T](#state.RangeSet^of^T)>[] | [Range](#state.Range)<[T](#state.RangeSet^of^T)>,  [sort](#state.RangeSet^of^sort)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false  ) → [RangeSet](#state.RangeSet)<[T](#state.RangeSet^of^T)>`
 
-sorted (by start
-position and, if two start at the same position,
+Create a range set for the given range or array of ranges. By default, this expects the ranges to be _sorted_ (by start position and, if two start at the same position, `value.startSide`). You can pass `true` as second argument to cause the method to sort them.
 
-`value.startSide`). You can pass
+`static **[join](#state.RangeSet^join)**<[T](#state.RangeSet^join^T) extends [RangeValue](#state.RangeValue)>([sets](#state.RangeSet^join^sets): readonly [RangeSet](#state.RangeSet)<[T](#state.RangeSet^join^T)>[]) → [RangeSet](#state.RangeSet)<[T](#state.RangeSet^join^T)>`
 
-`true`as second argument to
-cause the method to sort them.
+Join an array of range sets into a single set.
 
-static join `<`T extends RangeValue `>(`sets `:`readonly RangeSet `<`T `>[]) →`RangeSet `<`T `>`Join an array of range sets into a single set.
+`static **[empty](#state.RangeSet^empty)**: [RangeSet](#state.RangeSet)<any>`
 
-static empty `:`RangeSet `<`any `>`The empty set of ranges.
+The empty set of ranges.
 
-interface RangeCursor `<`T `>`A range cursor is an object that moves to the next range every
-time you call
+#### `interface` [RangeCursor](#state.RangeCursor)`<[T](#state.RangeCursor^T)>`
 
-`next`on it. Note that, unlike ES6 iterators, these
-start out pointing at the first element, so you should call
+A range cursor is an object that moves to the next range every time you call `next` on it. Note that, unlike ES6 iterators, these start out pointing at the first element, so you should call `next` only after reading the first range (if any).
 
-`next`only after reading the first range (if any).
+`**[next](#state.RangeCursor.next)**()`
 
-next `()`Move the iterator forward.
+Move the iterator forward.
 
-value `:`T `|`null The next range's value. Holds
+`**[value](#state.RangeCursor.value)**: [T](#state.RangeCursor^T) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`null`when the cursor has reached
-its end.
+The next range's value. Holds `null` when the cursor has reached its end.
 
-from `:`number The next range's start position.
+`**[from](#state.RangeCursor.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-to `:`number The next end position.
+The next range's start position.
 
-class RangeSetBuilder `<`T extends RangeValue `>`A range set builder is a data structure that helps build up a
+`**[to](#state.RangeCursor.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-range set directly, without first allocating
-an array of
+The next end position.
 
-`Range`objects.
+#### `class` [RangeSetBuilder](#state.RangeSetBuilder)`<[T](#state.RangeSetBuilder^T) extends [RangeValue](#state.RangeValue)>`
 
-new RangeSetBuilder `()`Create an empty builder.
+A range set builder is a data structure that helps build up a [range set](#state.RangeSet) directly, without first allocating an array of [`Range`](#state.Range) objects.
 
-add `(`from `:`number `,`to `:`number `,`value `:`T `)`Add a range. Ranges should be added in sorted (by
+`new **[RangeSetBuilder](#state.RangeSetBuilder.constructor)**()`
 
-`from`and
+Create an empty builder.
 
-`value.startSide`) order.
+`**[add](#state.RangeSetBuilder.add)**([from](#state.RangeSetBuilder.add^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#state.RangeSetBuilder.add^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [value](#state.RangeSetBuilder.add^value): [T](#state.RangeSetBuilder^T))`
 
-finish `() →`RangeSet `<`T `>`Finish the range set. Returns the new set. The builder can't be
-used anymore after this has been called.
+Add a range. Ranges should be added in sorted (by `from` and `value.startSide`) order.
 
-interface RangeComparator `<`T extends RangeValue `>`Collection of methods used when comparing range sets.
+`**[finish](#state.RangeSetBuilder.finish)**() → [RangeSet](#state.RangeSet)<[T](#state.RangeSetBuilder^T)>`
 
-compareRange `(`from : number , to : number , activeA : T [], activeB : T [] `)`Notifies the comparator that a range (in positions in the new
-document) has the given sets of values associated with it, which
-are different in the old (A) and new (B) sets.
+Finish the range set. Returns the new set. The builder can't be used anymore after this has been called.
 
-comparePoint `(`from : number , to : number , pointA : T | null , pointB : T | null `)`Notification for a changed (or inserted, or deleted) point range.
+#### `interface` [RangeComparator](#state.RangeComparator)`<[T](#state.RangeComparator^T) extends [RangeValue](#state.RangeValue)>`
 
-boundChange `⁠?:`fn `(`pos `:`number `)`Notification for a changed boundary between ranges. For example,
-if the same span is covered by two partial ranges before and one
-bigger range after, this is called at the point where the ranges
-used to be split.
+Collection of methods used when comparing range sets.
 
-interface SpanIterator `<`T extends RangeValue `>`Methods used when iterating over the spans created by a set of
-ranges. The entire iterated range will be covered with either
+`**[compareRange](#state.RangeComparator.compareRange)**(  [from](#state.RangeComparator.compareRange^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.RangeComparator.compareRange^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [activeA](#state.RangeComparator.compareRange^activeA): [T](#state.RangeComparator^T)[],  [activeB](#state.RangeComparator.compareRange^activeB): [T](#state.RangeComparator^T)[]  )`
 
-`span`or
+Notifies the comparator that a range (in positions in the new document) has the given sets of values associated with it, which are different in the old (A) and new (B) sets.
 
-`point`calls.
+`**[comparePoint](#state.RangeComparator.comparePoint)**(  [from](#state.RangeComparator.comparePoint^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.RangeComparator.comparePoint^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [pointA](#state.RangeComparator.comparePoint^pointA): [T](#state.RangeComparator^T) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null),  [pointB](#state.RangeComparator.comparePoint^pointB): [T](#state.RangeComparator^T) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  )`
 
-span `(`from : number , to : number , active : readonly T [], openStart : number `)`Called for any ranges not covered by point decorations.
+Notification for a changed (or inserted, or deleted) point range.
 
-`active`holds the values that the range is marked with (and may be
-empty).
+`**[boundChange](#state.RangeComparator.boundChange)**⁠?: fn([pos](#state.RangeComparator.boundChange^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
 
-`openStart`indicates how many of those ranges are open
-(continued) at the start of the span.
+Notification for a changed boundary between ranges. For example, if the same span is covered by two partial ranges before and one bigger range after, this is called at the point where the ranges used to be split.
 
-point `(`from : number , to : number , value : T , active : readonly T [], openStart : number , index : number `)`Called when going over a point decoration. The active range
-decorations that cover the point and have a higher precedence
-are provided in
+#### `interface` [SpanIterator](#state.SpanIterator)`<[T](#state.SpanIterator^T) extends [RangeValue](#state.RangeValue)>`
 
-`active`. The open count in
+Methods used when iterating over the spans created by a set of ranges. The entire iterated range will be covered with either `span` or `point` calls.
 
-`openStart`counts
-the number of those ranges that started before the point and. If
-the point started before the iterated range,
+`**[span](#state.SpanIterator.span)**(  [from](#state.SpanIterator.span^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.SpanIterator.span^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [active](#state.SpanIterator.span^active): readonly [T](#state.SpanIterator^T)[],  [openStart](#state.SpanIterator.span^openStart): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )`
 
-`openStart`will be
+Called for any ranges not covered by point decorations. `active` holds the values that the range is marked with (and may be empty). `openStart` indicates how many of those ranges are open (continued) at the start of the span.
 
-`active.length + 1`to signal this.
+`**[point](#state.SpanIterator.point)**(  [from](#state.SpanIterator.point^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#state.SpanIterator.point^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [value](#state.SpanIterator.point^value): [T](#state.SpanIterator^T),  [active](#state.SpanIterator.point^active): readonly [T](#state.SpanIterator^T)[],  [openStart](#state.SpanIterator.point^openStart): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [index](#state.SpanIterator.point^index): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )`
+
+Called when going over a point decoration. The active range decorations that cover the point and have a higher precedence are provided in `active`. The open count in `openStart` counts the number of those ranges that started before the point and. If the point started before the iterated range, `openStart` will be `active.length + 1` to signal this.
 
 ### Utilities
 
-combineConfig `<`Config extends object `>(`configs : readonly Partial < Config >[], defaults : Partial < Config >, combine ⁠?: { [ P in keyof Config ]: fn ( first : Config [ P ], second : Config [ P ]) → Config [ P ] } = {} `) →`Config Utility function for combining behaviors to fill in a config
-object from an array of provided configs.
+`**[combineConfig](#state.combineConfig)**<[Config](#state.combineConfig^Config) extends [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)>(  [configs](#state.combineConfig^configs): readonly [Partial](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype)<[Config](#state.combineConfig^Config)>[],  [defaults](#state.combineConfig^defaults): [Partial](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype)<[Config](#state.combineConfig^Config)>,  [combine](#state.combineConfig^combine)⁠?: {  [[P](#state.combineConfig^combine^P) in keyof [Config](#state.combineConfig^Config)]: fn([first](#state.combineConfig^combine^first): [Config](#state.combineConfig^Config)[[P](#state.combineConfig^combine^P)], [second](#state.combineConfig^combine^second): [Config](#state.combineConfig^Config)[[P](#state.combineConfig^combine^P)]) → [Config](#state.combineConfig^Config)[[P](#state.combineConfig^combine^P)]  } = {}  ) → [Config](#state.combineConfig^Config)`
 
-`defaults`should hold
-default values for all optional fields in
+Utility function for combining behaviors to fill in a config object from an array of provided configs. `defaults` should hold default values for all optional fields in `Config`.
 
-`Config`.
+The function will, by default, error when a field gets two values that aren't `===`\-equal, but you can provide combine functions per field to do something else.
 
-The function will, by default, error
-when a field gets two values that aren't
+## [@codemirror/view](#view)
 
-`===`-equal, but you can
-provide combine functions per field to do something else.
+The “view” is the part of the editor that the user sees—a DOM component that displays the editor state and allows text input.
 
-@codemirror/ view The “view” is the part of the editor that the user sees—a DOM
-component that displays the editor state and allows text input.
+#### `interface` [EditorViewConfig](#view.EditorViewConfig) `extends [EditorStateConfig](#state.EditorStateConfig)`
 
-interface EditorViewConfig extends EditorStateConfig The type of object given to the
+The type of object given to the [`EditorView`](#view.EditorView) constructor.
 
-`EditorView`constructor.
+`**[state](#view.EditorViewConfig.state)**⁠?: [EditorState](#state.EditorState)`
 
-state `⁠?:`EditorState The view's initial state. If not given, a new state is created
-by passing this configuration object to
+The view's initial state. If not given, a new state is created by passing this configuration object to [`EditorState.create`](#state.EditorState%5Ecreate), using its `doc`, `selection`, and `extensions` field (if provided).
 
-`EditorState.create`, using its
+`**[parent](#view.EditorViewConfig.parent)**⁠?: [Element](https://developer.mozilla.org/en/docs/DOM/Element) | [DocumentFragment](https://developer.mozilla.org/en/docs/DOM/document.createDocumentFragment)`
 
-`doc`,
+When given, the editor is immediately appended to the given element on creation. (Otherwise, you'll have to place the view's [`dom`](#view.EditorView.dom) element in the document yourself.)
 
-`selection`, and
+`**[root](#view.EditorViewConfig.root)**⁠?: [Document](https://developer.mozilla.org/en/docs/DOM/document) | [ShadowRoot](https://developer.mozilla.org/en-US/docs/Web/API/ShadowRoot)`
 
-`extensions`field (if provided).
+If the view is going to be mounted in a shadow root or document other than the one held by the global variable `document` (the default), you should pass it here. If you provide `parent`, but not this option, the editor will automatically look up a root from the parent.
 
-parent `⁠?:`Element `|`DocumentFragment When given, the editor is immediately appended to the given
-element on creation. (Otherwise, you'll have to place the view's
+`**[scrollTo](#view.EditorViewConfig.scrollTo)**⁠?: [StateEffect](#state.StateEffect)<any>`
 
-`dom`element in the document yourself.)
+Pass an effect created with [`EditorView.scrollIntoView`](#view.EditorView%5EscrollIntoView) or [`EditorView.scrollSnapshot`](#view.EditorView.scrollSnapshot) here to set an initial scroll position.
 
-root `⁠?:`Document `|`ShadowRoot If the view is going to be mounted in a shadow root or document
-other than the one held by the global variable
+`**[dispatchTransactions](#view.EditorViewConfig.dispatchTransactions)**⁠?: fn([trs](#view.EditorViewConfig.dispatchTransactions^trs): readonly [Transaction](#state.Transaction)[], [view](#view.EditorViewConfig.dispatchTransactions^view): [EditorView](#view.EditorView))`
 
-`document`(the
-default), you should pass it here. If you provide
+Override the way transactions are [dispatched](#view.EditorView.dispatch) for this editor view. Your implementation, if provided, should probably call the view's [`update` method](#view.EditorView.update).
 
-`parent`, but
-not this option, the editor will automatically look up a root
-from the parent.
+`**[dispatch](#view.EditorViewConfig.dispatch)**⁠?: fn([tr](#view.EditorViewConfig.dispatch^tr): [Transaction](#state.Transaction), [view](#view.EditorViewConfig.dispatch^view): [EditorView](#view.EditorView))`
 
-scrollTo `⁠?:`StateEffect `<`any `>`Pass an effect created with
+**Deprecated** single-transaction version of `dispatchTransactions`. Will force transactions to be dispatched one at a time when used.
 
-`EditorView.scrollIntoView`or
+#### `class` [EditorView](#view.EditorView)
 
-`EditorView.scrollSnapshot`here to set an initial scroll position.
+An editor view represents the editor's user interface. It holds the editable DOM surface, and possibly other elements such as the line number gutter. It handles events and dispatches state transactions for editing actions.
 
-dispatchTransactions `⁠?:`fn `(`trs `:`readonly Transaction `[],`view `:`EditorView `)`Override the way transactions are
+`new **[EditorView](#view.EditorView.constructor)**([config](#view.EditorView.constructor^config)⁠?: [EditorViewConfig](#view.EditorViewConfig) = {})`
 
-dispatched for this editor view.
-Your implementation, if provided, should probably call the
-view's
+Construct a new view. You'll want to either provide a `parent` option, or put `view.dom` into your document after creating a view, so that the user can see the editor.
 
-`update`method .
+`**[state](#view.EditorView.state)**: [EditorState](#state.EditorState)`
 
-dispatch `⁠?:`fn `(`tr `:`Transaction `,`view `:`EditorView `)`Deprecated single-transaction version of
+The current editor state.
 
-`dispatchTransactions`. Will force transactions to be dispatched
-one at a time when used.
+`**[viewport](#view.EditorView.viewport)**: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-class EditorView An editor view represents the editor's user interface. It holds
-the editable DOM surface, and possibly other elements such as the
-line number gutter. It handles events and dispatches state
-transactions for editing actions.
+To be able to display large documents without consuming too much memory or overloading the browser, CodeMirror only draws the code that is visible (plus a margin around it) to the DOM. This property tells you the extent of the current drawn viewport, in document positions.
 
-new EditorView `(`config `⁠?:`EditorViewConfig = {} `)`Construct a new view. You'll want to either provide a
+`**[visibleRanges](#view.EditorView.visibleRanges)**: readonly {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}[]`
 
-`parent`option, or put
+When there are, for example, large collapsed ranges in the viewport, its size can be a lot bigger than the actual visible content. Thus, if you are doing something like styling the content in the viewport, it is preferable to only do so for these ranges, which are the subset of the viewport that is actually drawn.
 
-`view.dom`into your document after creating a
-view, so that the user can see the editor.
+`**[inView](#view.EditorView.inView)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-state `:`EditorState The current editor state.
+Returns false when the editor is entirely scrolled out of view or otherwise hidden.
 
-viewport `: {`from `:`number `,`to `:`number `}`To be able to display large documents without consuming too much
-memory or overloading the browser, CodeMirror only draws the
-code that is visible (plus a margin around it) to the DOM. This
-property tells you the extent of the current drawn viewport, in
-document positions.
+`**[composing](#view.EditorView.composing)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-visibleRanges `:`readonly `{`from `:`number `,`to `:`number `}[]`When there are, for example, large collapsed ranges in the
-viewport, its size can be a lot bigger than the actual visible
-content. Thus, if you are doing something like styling the
-content in the viewport, it is preferable to only do so for
-these ranges, which are the subset of the viewport that is
-actually drawn.
+Indicates whether the user is currently composing text via [IME](https://en.wikipedia.org/wiki/Input_method), and at least one change has been made in the current composition.
 
-inView `:`boolean Returns false when the editor is entirely scrolled out of view
-or otherwise hidden.
+`**[compositionStarted](#view.EditorView.compositionStarted)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-composing `:`boolean Indicates whether the user is currently composing text via
+Indicates whether the user is currently in composing state. Note that on some platforms, like Android, this will be the case a lot, since just putting the cursor on a word starts a composition there.
 
-IME , and at least
-one change has been made in the current composition.
+`**[root](#view.EditorView.root)**: [DocumentOrShadowRoot](https://developer.mozilla.org/en-US/docs/Web/API/DocumentOrShadowRoot)`
 
-compositionStarted `:`boolean Indicates whether the user is currently in composing state. Note
-that on some platforms, like Android, this will be the case a
-lot, since just putting the cursor on a word starts a
-composition there.
+The document or shadow root that the view lives in.
 
-root `:`DocumentOrShadowRoot The document or shadow root that the view lives in.
+`**[dom](#view.EditorView.dom)**: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-dom `:`HTMLElement The DOM element that wraps the entire editor view.
+The DOM element that wraps the entire editor view.
 
-scrollDOM `:`HTMLElement The DOM element that can be styled to scroll. (Note that it may
-not have been, so you can't assume this is scrollable.)
+`**[scrollDOM](#view.EditorView.scrollDOM)**: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-contentDOM `:`HTMLElement The editable DOM element holding the editor content. You should
-not, usually, interact with this content directly though the
-DOM, since the editor will immediately undo most of the changes
-you make. Instead,
+The DOM element that can be styled to scroll. (Note that it may not have been, so you can't assume this is scrollable.)
 
-dispatch transactions to modify content, and
+`**[contentDOM](#view.EditorView.contentDOM)**: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-decorations to style it.
+The editable DOM element holding the editor content. You should not, usually, interact with this content directly though the DOM, since the editor will immediately undo most of the changes you make. Instead, [dispatch](#view.EditorView.dispatch) [transactions](#state.Transaction) to modify content, and [decorations](#view.Decoration) to style it.
 
-dispatch `(`tr `:`Transaction `)`dispatch `(`trs `:`readonly Transaction `[])`dispatch `(...`specs `:`TransactionSpec `[])`All regular editor state updates should go through this. It
-takes a transaction, array of transactions, or transaction spec
-and updates the view to show the new state produced by that
-transaction. Its implementation can be overridden with an
+`**[dispatch](#view.EditorView.dispatch)**([tr](#view.EditorView.dispatch^tr): [Transaction](#state.Transaction))`
 
-option .
-This function is bound to the view instance, so it does not have
-to be called as a method.
+`**[dispatch](#view.EditorView.dispatch)**([trs](#view.EditorView.dispatch^trs): readonly [Transaction](#state.Transaction)[])`
 
-Note that when multiple
+`**[dispatch](#view.EditorView.dispatch)**(...[specs](#view.EditorView.dispatch^specs): [TransactionSpec](#state.TransactionSpec)[])`
 
-`TransactionSpec`arguments are
-provided, these define a single transaction (the specs will be
-merged), not a sequence of transactions.
+All regular editor state updates should go through this. It takes a transaction, array of transactions, or transaction spec and updates the view to show the new state produced by that transaction. Its implementation can be overridden with an [option](#view.EditorView.constructor%5Econfig.dispatchTransactions). This function is bound to the view instance, so it does not have to be called as a method.
 
-update `(`transactions `:`readonly Transaction `[])`Update the view for the given array of transactions. This will
-update the visible document and selection to match the state
-produced by the transactions, and notify view plugins of the
-change. You should usually call
+Note that when multiple `TransactionSpec` arguments are provided, these define a single transaction (the specs will be merged), not a sequence of transactions.
 
-`dispatch`instead, which uses this
-as a primitive.
+`**[update](#view.EditorView.update)**([transactions](#view.EditorView.update^transactions): readonly [Transaction](#state.Transaction)[])`
 
-setState `(`newState `:`EditorState `)`Reset the view to the given state. (This will cause the entire
-document to be redrawn and all view plugins to be reinitialized,
-so you should probably only use it when the new state isn't
-derived from the old state. Otherwise, use
+Update the view for the given array of transactions. This will update the visible document and selection to match the state produced by the transactions, and notify view plugins of the change. You should usually call [`dispatch`](#view.EditorView.dispatch) instead, which uses this as a primitive.
 
-`dispatch`instead.)
+`**[setState](#view.EditorView.setState)**([newState](#view.EditorView.setState^newState): [EditorState](#state.EditorState))`
 
-themeClasses `:`string Get the CSS classes for the currently active editor themes.
+Reset the view to the given state. (This will cause the entire document to be redrawn and all view plugins to be reinitialized, so you should probably only use it when the new state isn't derived from the old state. Otherwise, use [`dispatch`](#view.EditorView.dispatch) instead.)
 
-requestMeasure `<`T `>(`request `⁠?:`Object `)`Schedule a layout measurement, optionally providing callbacks to
-do custom DOM measuring followed by a DOM write phase. Using
-this is preferable reading DOM layout directly from, for
-example, an event handler, because it'll make sure measuring and
-drawing done by other components is synchronized, avoiding
-unnecessary DOM layout computations.
+`**[themeClasses](#view.EditorView.themeClasses)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-request read `(`view `:`EditorView `) →`T Called in a DOM read phase to gather information that requires
-DOM layout. Should
+Get the CSS classes for the currently active editor themes.
 
-not mutate the document.
+`**[requestMeasure](#view.EditorView.requestMeasure)**<[T](#view.EditorView.requestMeasure^T)>([request](#view.EditorView.requestMeasure^request)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))`
 
-write `⁠?:`fn `(`measure `:`T `,`view `:`EditorView `)`Called in a DOM write phase to update the document. Should
+Schedule a layout measurement, optionally providing callbacks to do custom DOM measuring followed by a DOM write phase. Using this is preferable reading DOM layout directly from, for example, an event handler, because it'll make sure measuring and drawing done by other components is synchronized, avoiding unnecessary DOM layout computations.
 
-not do anything that triggers DOM layout.
+`**[request](#view.EditorView.requestMeasure^request)**`
 
-key `⁠?:`any When multiple requests with the same key are scheduled, only the
-last one will actually be run.
+`**[read](#view.EditorView.requestMeasure^request.read)**([view](#view.EditorView.requestMeasure^request.read^view): [EditorView](#view.EditorView)) → [T](#view.EditorView.requestMeasure^T)`
 
-plugin `<`T extends PluginValue `>(`plugin `:`ViewPlugin `<`T `>) →`T `|`null Get the value of a specific plugin, if present. Note that
-plugins that crash can be dropped from a view, so even when you
-know you registered a given plugin, it is recommended to check
-the return value of this method.
+Called in a DOM read phase to gather information that requires DOM layout. Should _not_ mutate the document.
 
-documentTop `:`number The top position of the document, in screen coordinates. This
-may be negative when the editor is scrolled down. Points
-directly to the top of the first line, not above the padding.
+`**[write](#view.EditorView.requestMeasure^request.write)**⁠?: fn([measure](#view.EditorView.requestMeasure^request.write^measure): [T](#view.EditorView.requestMeasure^T), [view](#view.EditorView.requestMeasure^request.write^view): [EditorView](#view.EditorView))`
 
-documentPadding `: {`top `:`number `,`bottom `:`number `}`Reports the padding above and below the document.
+Called in a DOM write phase to update the document. Should _not_ do anything that triggers DOM layout.
 
-scaleX `:`number If the editor is transformed with CSS, this provides the scale
-along the X axis. Otherwise, it will just be 1. Note that
-transforms other than translation and scaling are not supported.
+`**[key](#view.EditorView.requestMeasure^request.key)**⁠?: any`
 
-scaleY `:`number Provide the CSS transformed scale along the Y axis.
+When multiple requests with the same key are scheduled, only the last one will actually be run.
 
-elementAtHeight `(`height `:`number `) →`BlockInfo Find the text line or block widget at the given vertical
-position (which is interpreted as relative to the
+`**[plugin](#view.EditorView.plugin)**<[T](#view.EditorView.plugin^T) extends [PluginValue](#view.PluginValue)>([plugin](#view.EditorView.plugin^plugin): [ViewPlugin](#view.ViewPlugin)<[T](#view.EditorView.plugin^T)>) → [T](#view.EditorView.plugin^T) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-top of the
-document ).
+Get the value of a specific plugin, if present. Note that plugins that crash can be dropped from a view, so even when you know you registered a given plugin, it is recommended to check the return value of this method.
 
-lineBlockAtHeight `(`height `:`number `) →`BlockInfo Find the line block (see
+`**[documentTop](#view.EditorView.documentTop)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`lineBlockAt`at the given
-height, again interpreted relative to the
+The top position of the document, in screen coordinates. This may be negative when the editor is scrolled down. Points directly to the top of the first line, not above the padding.
 
-top of the
-document .
+`**[documentPadding](#view.EditorView.documentPadding)**: {top: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), bottom: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-viewportLineBlocks `:`BlockInfo `[]`Get the extent and vertical position of all
+Reports the padding above and below the document.
 
-line
-blocks in the viewport. Positions
-are relative to the
+`**[scaleX](#view.EditorView.scaleX)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-top of the
-document ;
+If the editor is transformed with CSS, this provides the scale along the X axis. Otherwise, it will just be 1. Note that transforms other than translation and scaling are not supported.
 
-lineBlockAt `(`pos `:`number `) →`BlockInfo Find the line block around the given document position. A line
-block is a range delimited on both sides by either a
-non-
+`**[scaleY](#view.EditorView.scaleY)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-hidden line break, or the
-start/end of the document. It will usually just hold a line of
-text, but may be broken into multiple textblocks by block
-widgets.
+Provide the CSS transformed scale along the Y axis.
 
-contentHeight `:`number The editor's total content height.
+`**[elementAtHeight](#view.EditorView.elementAtHeight)**([height](#view.EditorView.elementAtHeight^height): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [BlockInfo](#view.BlockInfo)`
 
-moveByChar `(`start : SelectionRange , forward : boolean , by ⁠?: fn ( initial : string ) → fn ( next : string ) → boolean `) →`SelectionRange Move a cursor position by
+Find the text line or block widget at the given vertical position (which is interpreted as relative to the [top of the document](#view.EditorView.documentTop)).
 
-grapheme
-cluster .
+`**[lineBlockAtHeight](#view.EditorView.lineBlockAtHeight)**([height](#view.EditorView.lineBlockAtHeight^height): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [BlockInfo](#view.BlockInfo)`
 
-`forward`determines whether
-the motion is away from the line start, or towards it. In
-bidirectional text, the line is traversed in visual order, using
-the editor's
+Find the line block (see [`lineBlockAt`](#view.EditorView.lineBlockAt) at the given height, again interpreted relative to the [top of the document](#view.EditorView.documentTop).
 
-text direction .
-When the start position was the last one on the line, the
-returned position will be across the line break. If there is no
-further line, the original position is returned.
+`**[viewportLineBlocks](#view.EditorView.viewportLineBlocks)**: [BlockInfo](#view.BlockInfo)[]`
 
-By default, this method moves over a single cluster. The
-optional
+Get the extent and vertical position of all [line blocks](#view.EditorView.lineBlockAt) in the viewport. Positions are relative to the [top of the document](#view.EditorView.documentTop);
 
-`by`argument can be used to move across more. It will
-be called with the first cluster as argument, and should return
-a predicate that determines, for each subsequent cluster,
-whether it should also be moved over.
+`**[lineBlockAt](#view.EditorView.lineBlockAt)**([pos](#view.EditorView.lineBlockAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [BlockInfo](#view.BlockInfo)`
 
-moveByGroup `(`start `:`SelectionRange `,`forward `:`boolean `) →`SelectionRange Move a cursor position across the next group of either
+Find the line block around the given document position. A line block is a range delimited on both sides by either a non-[hidden](#view.Decoration%5Ereplace) line break, or the start/end of the document. It will usually just hold a line of text, but may be broken into multiple textblocks by block widgets.
 
-letters or non-letter
-non-whitespace characters.
+`**[contentHeight](#view.EditorView.contentHeight)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-visualLineSide `(`line `:`Line `,`end `:`boolean `) →`SelectionRange Get the cursor position visually at the start or end of a line.
-Note that this may differ from the
+The editor's total content height.
 
-logical position at its
-start or end (which is simply at
+`**[moveByChar](#view.EditorView.moveByChar)**(  [start](#view.EditorView.moveByChar^start): [SelectionRange](#state.SelectionRange),  [forward](#view.EditorView.moveByChar^forward): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [by](#view.EditorView.moveByChar^by)⁠?: fn([initial](#view.EditorView.moveByChar^by^initial): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → fn([next](#view.EditorView.moveByChar^by^returns^next): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  ) → [SelectionRange](#state.SelectionRange)`
 
-`line.from`/
+Move a cursor position by [grapheme cluster](#state.findClusterBreak). `forward` determines whether the motion is away from the line start, or towards it. In bidirectional text, the line is traversed in visual order, using the editor's [text direction](#view.EditorView.textDirection). When the start position was the last one on the line, the returned position will be across the line break. If there is no further line, the original position is returned.
 
-`line.to`) if text
-at the start or end goes against the line's base text direction.
+By default, this method moves over a single cluster. The optional `by` argument can be used to move across more. It will be called with the first cluster as argument, and should return a predicate that determines, for each subsequent cluster, whether it should also be moved over.
 
-moveToLineBoundary `(`start : SelectionRange , forward : boolean , includeWrap ⁠?: boolean = true `) →`SelectionRange Move to the next line boundary in the given direction. If
+`**[moveByGroup](#view.EditorView.moveByGroup)**([start](#view.EditorView.moveByGroup^start): [SelectionRange](#state.SelectionRange), [forward](#view.EditorView.moveByGroup^forward): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [SelectionRange](#state.SelectionRange)`
 
-`includeWrap`is true, line wrapping is on, and there is a
-further wrap point on the current line, the wrap point will be
-returned. Otherwise this function will return the start or end
-of the line.
+Move a cursor position across the next group of either [letters](#state.EditorState.charCategorizer) or non-letter non-whitespace characters.
 
-moveVertically `(`start : SelectionRange , forward : boolean , distance ⁠?: number `) →`SelectionRange Move a cursor position vertically. When
+`**[visualLineSide](#view.EditorView.visualLineSide)**([line](#view.EditorView.visualLineSide^line): [Line](#state.Line), [end](#view.EditorView.visualLineSide^end): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [SelectionRange](#state.SelectionRange)`
 
-`distance`isn't given,
-it defaults to moving to the next line (including wrapped
-lines). Otherwise,
+Get the cursor position visually at the start or end of a line. Note that this may differ from the _logical_ position at its start or end (which is simply at `line.from`/`line.to`) if text at the start or end goes against the line's base text direction.
 
-`distance`should provide a positive distance
-in pixels.
+`**[moveToLineBoundary](#view.EditorView.moveToLineBoundary)**(  [start](#view.EditorView.moveToLineBoundary^start): [SelectionRange](#state.SelectionRange),  [forward](#view.EditorView.moveToLineBoundary^forward): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [includeWrap](#view.EditorView.moveToLineBoundary^includeWrap)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = true  ) → [SelectionRange](#state.SelectionRange)`
 
-When
+Move to the next line boundary in the given direction. If `includeWrap` is true, line wrapping is on, and there is a further wrap point on the current line, the wrap point will be returned. Otherwise this function will return the start or end of the line.
 
-`start`has a
+`**[moveVertically](#view.EditorView.moveVertically)**(  [start](#view.EditorView.moveVertically^start): [SelectionRange](#state.SelectionRange),  [forward](#view.EditorView.moveVertically^forward): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [distance](#view.EditorView.moveVertically^distance)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [SelectionRange](#state.SelectionRange)`
 
-`goalColumn`, the vertical
-motion will use that as a target horizontal position. Otherwise,
-the cursor's own horizontal position is used. The returned
-cursor will have its goal column set to whichever column was
-used.
+Move a cursor position vertically. When `distance` isn't given, it defaults to moving to the next line (including wrapped lines). Otherwise, `distance` should provide a positive distance in pixels.
 
-domAtPos `(`pos `:`number `) → {`node `:`Node `,`offset `:`number `}`Find the DOM parent node and offset (child offset if
+When `start` has a [`goalColumn`](#state.SelectionRange.goalColumn), the vertical motion will use that as a target horizontal position. Otherwise, the cursor's own horizontal position is used. The returned cursor will have its goal column set to whichever column was used.
 
-`node`is
-an element, character offset when it is a text node) at the
-given document position.
+`**[domAtPos](#view.EditorView.domAtPos)**([pos](#view.EditorView.domAtPos^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → {node: [Node](https://developer.mozilla.org/en/docs/DOM/Node), offset: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-Note that for positions that aren't currently in
+Find the DOM parent node and offset (child offset if `node` is an element, character offset when it is a text node) at the given document position.
 
-`visibleRanges`, the resulting DOM position isn't necessarily
-meaningful (it may just point before or after a placeholder
-element).
+Note that for positions that aren't currently in `visibleRanges`, the resulting DOM position isn't necessarily meaningful (it may just point before or after a placeholder element).
 
-posAtDOM `(`node `:`Node `,`offset `⁠?:`number = 0 `) →`number Find the document position at the given DOM node. Can be useful
-for associating positions with DOM events. Will raise an error
-when
+`**[posAtDOM](#view.EditorView.posAtDOM)**([node](#view.EditorView.posAtDOM^node): [Node](https://developer.mozilla.org/en/docs/DOM/Node), [offset](#view.EditorView.posAtDOM^offset)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`node`isn't part of the editor content.
+Find the document position at the given DOM node. Can be useful for associating positions with DOM events. Will raise an error when `node` isn't part of the editor content.
 
-posAtCoords `(`coords `: {`x `:`number `,`y `:`number `},`precise `:`false `) →`number posAtCoords `(`coords `: {`x `:`number `,`y `:`number `}) →`number `|`null Get the document position at the given screen coordinates. For
-positions not covered by the visible viewport's DOM structure,
-this will return null, unless
+`**[posAtCoords](#view.EditorView.posAtCoords)**([coords](#view.EditorView.posAtCoords^coords): {x: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), y: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}, [precise](#view.EditorView.posAtCoords^precise): [false](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`false`is passed as second
-argument, in which case it'll return an estimated position that
-would be near the coordinates if it were rendered.
+`**[posAtCoords](#view.EditorView.posAtCoords)**([coords](#view.EditorView.posAtCoords^coords): {x: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), y: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-coordsAtPos `(`pos `:`number `,`side `⁠?:`-1 `|`1 = 1 `) →`Rect `|`null Get the screen coordinates at the given document position.
+Get the document position at the given screen coordinates. For positions not covered by the visible viewport's DOM structure, this will return null, unless `false` is passed as second argument, in which case it'll return an estimated position that would be near the coordinates if it were rendered.
 
-`side`determines whether the coordinates are based on the
-element before (-1) or after (1) the position (if no element is
-available on the given side, the method will transparently use
-another strategy to get reasonable coordinates).
+`**[coordsAtPos](#view.EditorView.coordsAtPos)**([pos](#view.EditorView.coordsAtPos^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [side](#view.EditorView.coordsAtPos^side)⁠?: -1 | 1 = 1) → [Rect](#view.Rect) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-coordsForChar `(`pos `:`number `) →`Rect `|`null Return the rectangle around a given character. If
+Get the screen coordinates at the given document position. `side` determines whether the coordinates are based on the element before (-1) or after (1) the position (if no element is available on the given side, the method will transparently use another strategy to get reasonable coordinates).
 
-`pos`does not
-point in front of a character that is in the viewport and
-rendered (i.e. not replaced, not a line break), this will return
-null. For space characters that are a line wrap point, this will
-return the position before the line break.
+`**[coordsForChar](#view.EditorView.coordsForChar)**([pos](#view.EditorView.coordsForChar^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Rect](#view.Rect) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-defaultCharacterWidth `:`number The default width of a character in the editor. May not
-accurately reflect the width of all characters (given variable
-width fonts or styling of invididual ranges).
+Return the rectangle around a given character. If `pos` does not point in front of a character that is in the viewport and rendered (i.e. not replaced, not a line break), this will return null. For space characters that are a line wrap point, this will return the position before the line break.
 
-defaultLineHeight `:`number The default height of a line in the editor. May not be accurate
-for all lines.
+`**[defaultCharacterWidth](#view.EditorView.defaultCharacterWidth)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-textDirection `:`Direction The text direction
-(
+The default width of a character in the editor. May not accurately reflect the width of all characters (given variable width fonts or styling of invididual ranges).
 
-`direction`CSS property) of the editor's content element.
+`**[defaultLineHeight](#view.EditorView.defaultLineHeight)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-textDirectionAt `(`pos `:`number `) →`Direction Find the text direction of the block at the given position, as
-assigned by CSS. If
+The default height of a line in the editor. May not be accurate for all lines.
 
-`perLineTextDirection`isn't enabled, or the given position is outside of the viewport,
-this will always return the same as
+`**[textDirection](#view.EditorView.textDirection)**: [Direction](#view.Direction)`
 
-`textDirection`. Note that
-this may trigger a DOM layout.
+The text direction ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction) CSS property) of the editor's content element.
 
-lineWrapping `:`boolean Whether this editor
+`**[textDirectionAt](#view.EditorView.textDirectionAt)**([pos](#view.EditorView.textDirectionAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Direction](#view.Direction)`
 
-wraps lines (as determined by the
+Find the text direction of the block at the given position, as assigned by CSS. If [`perLineTextDirection`](#view.EditorView%5EperLineTextDirection) isn't enabled, or the given position is outside of the viewport, this will always return the same as [`textDirection`](#view.EditorView.textDirection). Note that this may trigger a DOM layout.
 
-`white-space`CSS property of its content element).
+`**[lineWrapping](#view.EditorView.lineWrapping)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-bidiSpans `(`line `:`Line `) →`readonly BidiSpan `[]`Returns the bidirectional text structure of the given line
-(which should be in the current document) as an array of span
-objects. The order of these spans matches the
+Whether this editor [wraps lines](#view.EditorView.lineWrapping) (as determined by the [`white-space`](https://developer.mozilla.org/en-US/docs/Web/CSS/white-space) CSS property of its content element).
 
-text
-direction —if that is
-left-to-right, the leftmost spans come first, otherwise the
-rightmost spans come first.
+`**[bidiSpans](#view.EditorView.bidiSpans)**([line](#view.EditorView.bidiSpans^line): [Line](#state.Line)) → readonly [BidiSpan](#view.BidiSpan)[]`
 
-hasFocus `:`boolean Check whether the editor has focus.
+Returns the bidirectional text structure of the given line (which should be in the current document) as an array of span objects. The order of these spans matches the [text direction](#view.EditorView.textDirection)—if that is left-to-right, the leftmost spans come first, otherwise the rightmost spans come first.
 
-focus `()`Put focus on the editor.
+`**[hasFocus](#view.EditorView.hasFocus)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-setRoot `(`root `:`Document `|`ShadowRoot `)`Update the
+Check whether the editor has focus.
 
-root in which the editor lives. This is only
-necessary when moving the editor's existing DOM to a new window or shadow root.
+`**[focus](#view.EditorView.focus)**()`
 
-destroy `()`Clean up this editor view, removing its element from the
-document, unregistering event handlers, and notifying
-plugins. The view instance can no longer be used after
-calling this.
+Put focus on the editor.
 
-scrollSnapshot `() →`StateEffect `<`{ range : SelectionRange , y : "nearest" | "start" | "end" | "center" , x : "nearest" | "start" | "end" | "center" , yMargin : number , xMargin : number , isSnapshot : boolean , map : fn ( changes : ChangeDesc ) → Object , clip : fn ( state : EditorState ) → Object } `>`Return an effect that resets the editor to its current (at the
-time this method was called) scroll position. Note that this
-only affects the editor's own scrollable element, not parents.
-See also
+`**[setRoot](#view.EditorView.setRoot)**([root](#view.EditorView.setRoot^root): [Document](https://developer.mozilla.org/en/docs/DOM/document) | [ShadowRoot](https://developer.mozilla.org/en-US/docs/Web/API/ShadowRoot))`
 
-`EditorViewConfig.scrollTo`.
+Update the [root](##view.EditorViewConfig.root) in which the editor lives. This is only necessary when moving the editor's existing DOM to a new window or shadow root.
 
-The effect should be used with a document identical to the one
-it was created for. Failing to do so is not an error, but may
-not scroll to the expected position. You can
+`**[destroy](#view.EditorView.destroy)**()`
 
-map the effect to account for changes.
+Clean up this editor view, removing its element from the document, unregistering event handlers, and notifying plugins. The view instance can no longer be used after calling this.
 
-setTabFocusMode `(`to `⁠?:`boolean `|`number `)`Enable or disable tab-focus mode, which disables key bindings
-for Tab and Shift-Tab, letting the browser's default
-focus-changing behavior go through instead. This is useful to
-prevent trapping keyboard users in your editor.
+`**[scrollSnapshot](#view.EditorView.scrollSnapshot)**() → [StateEffect](#state.StateEffect)<  {  range: [SelectionRange](#state.SelectionRange),  y: "nearest" | "start" | "end" | "center",  x: "nearest" | "start" | "end" | "center",  yMargin: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  xMargin: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  isSnapshot: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  map: fn([changes](#view.EditorView.scrollSnapshot^returns.map^changes): [ChangeDesc](#state.ChangeDesc)) → [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object),  clip: fn([state](#view.EditorView.scrollSnapshot^returns.clip^state): [EditorState](#state.EditorState)) → [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)  }  >`
 
-Without argument, this toggles the mode. With a boolean, it
-enables (true) or disables it (false). Given a number, it
-temporarily enables the mode until that number of milliseconds
-have passed or another non-Tab key is pressed.
+Return an effect that resets the editor to its current (at the time this method was called) scroll position. Note that this only affects the editor's own scrollable element, not parents. See also [`EditorViewConfig.scrollTo`](#view.EditorViewConfig.scrollTo).
 
-static scrollIntoView `(`pos `:`number `|`SelectionRange `,`options `⁠?:`Object = {} `) →`StateEffect `<`unknown `>`Returns an effect that can be
+The effect should be used with a document identical to the one it was created for. Failing to do so is not an error, but may not scroll to the expected position. You can [map](#state.StateEffect.map) the effect to account for changes.
 
-added to a transaction to
-cause it to scroll the given position or range into view.
+`**[setTabFocusMode](#view.EditorView.setTabFocusMode)**([to](#view.EditorView.setTabFocusMode^to)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
 
-options y `⁠?:`"nearest" `|`"start" `|`"end" `|`"center" By default (
+Enable or disable tab-focus mode, which disables key bindings for Tab and Shift-Tab, letting the browser's default focus-changing behavior go through instead. This is useful to prevent trapping keyboard users in your editor.
 
-`"nearest"`) the position will be vertically
-scrolled only the minimal amount required to move the given
-position into view. You can set this to
+Without argument, this toggles the mode. With a boolean, it enables (true) or disables it (false). Given a number, it temporarily enables the mode until that number of milliseconds have passed or another non-Tab key is pressed.
 
-`"start"`to move it
-to the top of the view,
+`static **[scrollIntoView](#view.EditorView^scrollIntoView)**([pos](#view.EditorView^scrollIntoView^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [SelectionRange](#state.SelectionRange), [options](#view.EditorView^scrollIntoView^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [StateEffect](#state.StateEffect)<unknown>`
 
-`"end"`to move it to the bottom, or
+Returns an effect that can be [added](#state.TransactionSpec.effects) to a transaction to cause it to scroll the given position or range into view.
 
-`"center"`to move it to the center.
+`**[options](#view.EditorView^scrollIntoView^options)**`
 
-x `⁠?:`"nearest" `|`"start" `|`"end" `|`"center" Effect similar to
+`**[y](#view.EditorView^scrollIntoView^options.y)**⁠?: "nearest" | "start" | "end" | "center"`
 
-`y`, but for the
-horizontal scroll position.
+By default (`"nearest"`) the position will be vertically scrolled only the minimal amount required to move the given position into view. You can set this to `"start"` to move it to the top of the view, `"end"` to move it to the bottom, or `"center"` to move it to the center.
 
-yMargin `⁠?:`number Extra vertical distance to add when moving something into
-view. Not used with the
+`**[x](#view.EditorView^scrollIntoView^options.x)**⁠?: "nearest" | "start" | "end" | "center"`
 
-`"center"`strategy. Defaults to 5.
-Must be less than the height of the editor.
+Effect similar to [`y`](#view.EditorView%5EscrollIntoView%5Eoptions.y), but for the horizontal scroll position.
 
-xMargin `⁠?:`number Extra horizontal distance to add. Not used with the
+`**[yMargin](#view.EditorView^scrollIntoView^options.yMargin)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`"center"`strategy. Defaults to 5. Must be less than the width of the
-editor.
+Extra vertical distance to add when moving something into view. Not used with the `"center"` strategy. Defaults to 5. Must be less than the height of the editor.
 
-static styleModule `:`Facet `<`StyleModule `>`Facet to add a
+`**[xMargin](#view.EditorView^scrollIntoView^options.xMargin)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-style
-module to
-an editor view. The view will ensure that the module is
-mounted in its
+Extra horizontal distance to add. Not used with the `"center"` strategy. Defaults to 5. Must be less than the width of the editor.
 
-document
-root .
+`static **[styleModule](#view.EditorView^styleModule)**: [Facet](#state.Facet)<[StyleModule](https://github.com/marijnh/style-mod#documentation)>`
 
-static domEventHandlers `(`handlers `:`DOMEventHandlers `<`any `>) →`Extension Returns an extension that can be used to add DOM event handlers.
-The value should be an object mapping event names to handler
-functions. For any given event, such functions are ordered by
-extension precedence, and the first handler to return true will
-be assumed to have handled that event, and no other handlers or
-built-in behavior will be activated for it. These are registered
-on the
+Facet to add a [style module](https://github.com/marijnh/style-mod#documentation) to an editor view. The view will ensure that the module is mounted in its [document root](#view.EditorView.constructor%5Econfig.root).
 
-content element , except
-for
+`static **[domEventHandlers](#view.EditorView^domEventHandlers)**([handlers](#view.EditorView^domEventHandlers^handlers): [DOMEventHandlers](#view.DOMEventHandlers)<any>) → [Extension](#state.Extension)`
 
-`scroll`handlers, which will be called any time the
-editor's
+Returns an extension that can be used to add DOM event handlers. The value should be an object mapping event names to handler functions. For any given event, such functions are ordered by extension precedence, and the first handler to return true will be assumed to have handled that event, and no other handlers or built-in behavior will be activated for it. These are registered on the [content element](#view.EditorView.contentDOM), except for `scroll` handlers, which will be called any time the editor's [scroll element](#view.EditorView.scrollDOM) or one of its parent nodes is scrolled.
 
-scroll element or one of
-its parent nodes is scrolled.
+`static **[domEventObservers](#view.EditorView^domEventObservers)**([observers](#view.EditorView^domEventObservers^observers): [DOMEventHandlers](#view.DOMEventHandlers)<any>) → [Extension](#state.Extension)`
 
-static domEventObservers `(`observers `:`DOMEventHandlers `<`any `>) →`Extension Create an extension that registers DOM event observers. Contrary
-to event
+Create an extension that registers DOM event observers. Contrary to event [handlers](#view.EditorView%5EdomEventHandlers), observers can't be prevented from running by a higher-precedence handler returning true. They also don't prevent other handlers and observers from running when they return true, and should not call `preventDefault`.
 
-handlers ,
-observers can't be prevented from running by a higher-precedence
-handler returning true. They also don't prevent other handlers
-and observers from running when they return true, and should not
-call
+`static **[inputHandler](#view.EditorView^inputHandler)**: [Facet](#state.Facet)<  fn(  [view](#view.EditorView^inputHandler^view): [EditorView](#view.EditorView),  [from](#view.EditorView^inputHandler^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#view.EditorView^inputHandler^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [text](#view.EditorView^inputHandler^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [insert](#view.EditorView^inputHandler^insert): fn() → [Transaction](#state.Transaction)  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  >`
 
-`preventDefault`.
+An input handler can override the way changes to the editable DOM content are handled. Handlers are passed the document positions between which the change was found, and the new content. When one returns true, no further input handlers are called and the default behavior is prevented.
 
-static inputHandler `:`Facet `<`fn ( view : EditorView , from : number , to : number , text : string , insert : fn () → Transaction ) → boolean `>`An input handler can override the way changes to the editable
-DOM content are handled. Handlers are passed the document
-positions between which the change was found, and the new
-content. When one returns true, no further input handlers are
-called and the default behavior is prevented.
+The `insert` argument can be used to get the default transaction that would be applied for this input. This can be useful when dispatching the custom behavior as a separate transaction.
 
-The
+`static **[clipboardInputFilter](#view.EditorView^clipboardInputFilter)**: [Facet](#state.Facet)<fn([text](#view.EditorView^clipboardInputFilter^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [state](#view.EditorView^clipboardInputFilter^state): [EditorState](#state.EditorState)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-`insert`argument can be used to get the default transaction
-that would be applied for this input. This can be useful when
-dispatching the custom behavior as a separate transaction.
+Functions provided in this facet will be used to transform text pasted or dropped into the editor.
 
-static clipboardInputFilter `:`Facet `<`fn `(`text `:`string `,`state `:`EditorState `) →`string `>`Functions provided in this facet will be used to transform text
-pasted or dropped into the editor.
+`static **[clipboardOutputFilter](#view.EditorView^clipboardOutputFilter)**: [Facet](#state.Facet)<fn([text](#view.EditorView^clipboardOutputFilter^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [state](#view.EditorView^clipboardOutputFilter^state): [EditorState](#state.EditorState)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-static clipboardOutputFilter `:`Facet `<`fn `(`text `:`string `,`state `:`EditorState `) →`string `>`Transform text copied or dragged from the editor.
+Transform text copied or dragged from the editor.
 
-static scrollHandler `:`Facet `<`fn ( view : EditorView , range : SelectionRange , options : { x : "nearest" | "start" | "end" | "center" , y : "nearest" | "start" | "end" | "center" , xMargin : number , yMargin : number } ) → boolean `>`Scroll handlers can override how things are scrolled into view.
-If they return
+`static **[scrollHandler](#view.EditorView^scrollHandler)**: [Facet](#state.Facet)<  fn(  [view](#view.EditorView^scrollHandler^view): [EditorView](#view.EditorView),  [range](#view.EditorView^scrollHandler^range): [SelectionRange](#state.SelectionRange),  [options](#view.EditorView^scrollHandler^options): {  x: "nearest" | "start" | "end" | "center",  y: "nearest" | "start" | "end" | "center",  xMargin: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  yMargin: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  }  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  >`
 
-`true`, no further handling happens for the
-scrolling. If they return false, the default scroll behavior is
-applied. Scroll handlers should never initiate editor updates.
+Scroll handlers can override how things are scrolled into view. If they return `true`, no further handling happens for the scrolling. If they return false, the default scroll behavior is applied. Scroll handlers should never initiate editor updates.
 
-static focusChangeEffect `:`Facet `<`fn ( state : EditorState , focusing : boolean ) → StateEffect < any > | null `>`This facet can be used to provide functions that create effects
-to be dispatched when the editor's focus state changes.
+`static **[focusChangeEffect](#view.EditorView^focusChangeEffect)**: [Facet](#state.Facet)<  fn([state](#view.EditorView^focusChangeEffect^state): [EditorState](#state.EditorState), [focusing](#view.EditorView^focusChangeEffect^focusing): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [StateEffect](#state.StateEffect)<any> | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-static perLineTextDirection `:`Facet `<`boolean `,`boolean `>`By default, the editor assumes all its content has the same
+This facet can be used to provide functions that create effects to be dispatched when the editor's focus state changes.
 
-text direction . Configure this with a
+`static **[perLineTextDirection](#view.EditorView^perLineTextDirection)**: [Facet](#state.Facet)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`true`value to make it read the text direction of every (rendered)
-line separately.
+By default, the editor assumes all its content has the same [text direction](#view.Direction). Configure this with a `true` value to make it read the text direction of every (rendered) line separately.
 
-static exceptionSink `:`Facet `<`fn `(`exception `:`any `)>`Allows you to provide a function that should be called when the
-library catches an exception from an extension (mostly from view
-plugins, but may be used by other extensions to route exceptions
-from user-code-provided callbacks). This is mostly useful for
-debugging and logging. See
+`static **[exceptionSink](#view.EditorView^exceptionSink)**: [Facet](#state.Facet)<fn([exception](#view.EditorView^exceptionSink^exception): any)>`
 
-`logException`.
+Allows you to provide a function that should be called when the library catches an exception from an extension (mostly from view plugins, but may be used by other extensions to route exceptions from user-code-provided callbacks). This is mostly useful for debugging and logging. See [`logException`](#view.logException).
 
-static updateListener `:`Facet `<`fn `(`update `:`ViewUpdate `)>`A facet that can be used to register a function to be called
-every time the view updates.
+`static **[updateListener](#view.EditorView^updateListener)**: [Facet](#state.Facet)<fn([update](#view.EditorView^updateListener^update): [ViewUpdate](#view.ViewUpdate))>`
 
-static editable `:`Facet `<`boolean `,`boolean `>`Facet that controls whether the editor content DOM is editable.
-When its highest-precedence value is
+A facet that can be used to register a function to be called every time the view updates.
 
-`false`, the element will
-not have its
+`static **[editable](#view.EditorView^editable)**: [Facet](#state.Facet)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`contenteditable`attribute set. (Note that this
-doesn't affect API calls that change the editor content, even
-when those are bound to keys or buttons. See the
+Facet that controls whether the editor content DOM is editable. When its highest-precedence value is `false`, the element will not have its `contenteditable` attribute set. (Note that this doesn't affect API calls that change the editor content, even when those are bound to keys or buttons. See the [`readOnly`](#state.EditorState.readOnly) facet for that.)
 
-`readOnly`facet for that.)
+`static **[mouseSelectionStyle](#view.EditorView^mouseSelectionStyle)**: [Facet](#state.Facet)<  fn([view](#view.EditorView^mouseSelectionStyle^view): [EditorView](#view.EditorView), [event](#view.EditorView^mouseSelectionStyle^event): [MouseEvent](https://developer.mozilla.org/en/docs/DOM/MouseEvent)) → [MouseSelectionStyle](#view.MouseSelectionStyle) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-static mouseSelectionStyle `:`Facet `<`fn ( view : EditorView , event : MouseEvent ) → MouseSelectionStyle | null `>`Allows you to influence the way mouse selection happens. The
-functions in this facet will be called for a
+Allows you to influence the way mouse selection happens. The functions in this facet will be called for a `mousedown` event on the editor, and can return an object that overrides the way a selection is computed from that mouse click or drag.
 
-`mousedown`event
-on the editor, and can return an object that overrides the way a
-selection is computed from that mouse click or drag.
+`static **[dragMovesSelection](#view.EditorView^dragMovesSelection)**: [Facet](#state.Facet)<fn([event](#view.EditorView^dragMovesSelection^event): [MouseEvent](https://developer.mozilla.org/en/docs/DOM/MouseEvent)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-static dragMovesSelection `:`Facet `<`fn `(`event `:`MouseEvent `) →`boolean `>`Facet used to configure whether a given selection drag event
-should move or copy the selection. The given predicate will be
-called with the
+Facet used to configure whether a given selection drag event should move or copy the selection. The given predicate will be called with the `mousedown` event, and can return `true` when the drag should move the content.
 
-`mousedown`event, and can return
+`static **[clickAddsSelectionRange](#view.EditorView^clickAddsSelectionRange)**: [Facet](#state.Facet)<fn([event](#view.EditorView^clickAddsSelectionRange^event): [MouseEvent](https://developer.mozilla.org/en/docs/DOM/MouseEvent)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-`true`when
-the drag should move the content.
+Facet used to configure whether a given selecting click adds a new range to the existing selection or replaces it entirely. The default behavior is to check `event.metaKey` on macOS, and `event.ctrlKey` elsewhere.
 
-static clickAddsSelectionRange `:`Facet `<`fn `(`event `:`MouseEvent `) →`boolean `>`Facet used to configure whether a given selecting click adds a
-new range to the existing selection or replaces it entirely. The
-default behavior is to check
+`static **[decorations](#view.EditorView^decorations)**: [Facet](#state.Facet)<[DecorationSet](#view.DecorationSet) | fn([view](#view.EditorView^decorations^view): [EditorView](#view.EditorView)) → [DecorationSet](#view.DecorationSet)>`
 
-`event.metaKey`on macOS, and
+A facet that determines which [decorations](#view.Decoration) are shown in the view. Decorations can be provided in two ways—directly, or via a function that takes an editor view.
 
-`event.ctrlKey`elsewhere.
+Only decoration sets provided directly are allowed to influence the editor's vertical layout structure. The ones provided as functions are called _after_ the new viewport has been computed, and thus **must not** introduce block widgets or replacing decorations that cover line breaks.
 
-static decorations `:`Facet `<`DecorationSet `|`fn `(`view `:`EditorView `) →`DecorationSet `>`A facet that determines which
+If you want decorated ranges to behave like atomic units for cursor motion and deletion purposes, also provide the range set containing the decorations to [`EditorView.atomicRanges`](#view.EditorView%5EatomicRanges).
 
-decorations are shown in the view. Decorations can be provided in two
-ways—directly, or via a function that takes an editor view.
+`static **[outerDecorations](#view.EditorView^outerDecorations)**: [Facet](#state.Facet)<[DecorationSet](#view.DecorationSet) | fn([view](#view.EditorView^outerDecorations^view): [EditorView](#view.EditorView)) → [DecorationSet](#view.DecorationSet)>`
 
-Only decoration sets provided directly are allowed to influence
-the editor's vertical layout structure. The ones provided as
-functions are called
+Facet that works much like [`decorations`](#view.EditorView%5Edecorations), but puts its inputs at the very bottom of the precedence stack, meaning mark decorations provided here will only be split by other, partially overlapping \`outerDecorations\` ranges, and wrap around all regular decorations. Use this for mark elements that should, as much as possible, remain in one piece.
 
-after the new viewport has been computed,
-and thus
+`static **[atomicRanges](#view.EditorView^atomicRanges)**: [Facet](#state.Facet)<fn([view](#view.EditorView^atomicRanges^view): [EditorView](#view.EditorView)) → [RangeSet](#state.RangeSet)<any>>`
 
-must not introduce block widgets or replacing
-decorations that cover line breaks.
+Used to provide ranges that should be treated as atoms as far as cursor motion is concerned. This causes methods like [`moveByChar`](#view.EditorView.moveByChar) and [`moveVertically`](#view.EditorView.moveVertically) (and the commands built on top of them) to skip across such regions when a selection endpoint would enter them. This does _not_ prevent direct programmatic [selection updates](#state.TransactionSpec.selection) from moving into such regions.
 
-If you want decorated ranges to behave like atomic units for
-cursor motion and deletion purposes, also provide the range set
-containing the decorations to
+`static **[bidiIsolatedRanges](#view.EditorView^bidiIsolatedRanges)**: [Facet](#state.Facet)<[DecorationSet](#view.DecorationSet) | fn([view](#view.EditorView^bidiIsolatedRanges^view): [EditorView](#view.EditorView)) → [DecorationSet](#view.DecorationSet)>`
 
-`EditorView.atomicRanges`.
+When range decorations add a `unicode-bidi: isolate` style, they should also include a [`bidiIsolate`](#view.MarkDecorationSpec.bidiIsolate) property in their decoration spec, and be exposed through this facet, so that the editor can compute the proper text order. (Other values for `unicode-bidi`, except of course `normal`, are not supported.)
 
-static outerDecorations `:`Facet `<`DecorationSet `|`fn `(`view `:`EditorView `) →`DecorationSet `>`Facet that works much like
+`static **[scrollMargins](#view.EditorView^scrollMargins)**: [Facet](#state.Facet)<fn([view](#view.EditorView^scrollMargins^view): [EditorView](#view.EditorView)) → [Partial](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype)<[Rect](#view.Rect)> | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-`decorations`, but puts its
-inputs at the very bottom of the precedence stack, meaning mark
-decorations provided here will only be split by other, partially
-overlapping `outerDecorations` ranges, and wrap around all
-regular decorations. Use this for mark elements that should, as
-much as possible, remain in one piece.
+Facet that allows extensions to provide additional scroll margins (space around the sides of the scrolling element that should be considered invisible). This can be useful when the plugin introduces elements that cover part of that element (for example a horizontally fixed gutter).
 
-static atomicRanges `:`Facet `<`fn `(`view `:`EditorView `) →`RangeSet `<`any `>>`Used to provide ranges that should be treated as atoms as far as
-cursor motion is concerned. This causes methods like
+`static **[theme](#view.EditorView^theme)**([spec](#view.EditorView^theme^spec): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[StyleSpec](https://github.com/marijnh/style-mod#documentation)>, [options](#view.EditorView^theme^options)⁠?: {dark⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)}) → [Extension](#state.Extension)`
 
-`moveByChar`and
+Create a theme extension. The first argument can be a [`style-mod`](https://github.com/marijnh/style-mod#documentation) style spec providing the styles for the theme. These will be prefixed with a generated class for the style.
 
-`moveVertically`(and the
-commands built on top of them) to skip across such regions when
-a selection endpoint would enter them. This does
+Because the selectors will be prefixed with a scope class, rule that directly match the editor's [wrapper element](#view.EditorView.dom)—to which the scope class will be added—need to be explicitly differentiated by adding an `&` to the selector for that element—for example `&.cm-focused`.
 
-not prevent
-direct programmatic
+When `dark` is set to true, the theme will be marked as dark, which will cause the `&dark` rules from [base themes](#view.EditorView%5EbaseTheme) to be used (as opposed to `&light` when a light theme is active).
 
-selection
-updates from moving into such
-regions.
+`static **[darkTheme](#view.EditorView^darkTheme)**: [Facet](#state.Facet)<[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)>`
 
-static bidiIsolatedRanges `:`Facet `<`DecorationSet `|`fn `(`view `:`EditorView `) →`DecorationSet `>`When range decorations add a
+This facet records whether a dark theme is active. The extension returned by [`theme`](#view.EditorView%5Etheme) automatically includes an instance of this when the `dark` option is set to true.
 
-`unicode-bidi: isolate`style, they
-should also include a
+`static **[baseTheme](#view.EditorView^baseTheme)**([spec](#view.EditorView^baseTheme^spec): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[StyleSpec](https://github.com/marijnh/style-mod#documentation)>) → [Extension](#state.Extension)`
 
-`bidiIsolate`property
-in their decoration spec, and be exposed through this facet, so
-that the editor can compute the proper text order. (Other values
-for
+Create an extension that adds styles to the base theme. Like with [`theme`](#view.EditorView%5Etheme), use `&` to indicate the place of the editor wrapper element when directly targeting that. You can also use `&dark` or `&light` instead to only target editors with a dark or light theme.
 
-`unicode-bidi`, except of course
+`static **[cspNonce](#view.EditorView^cspNonce)**: [Facet](#state.Facet)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-`normal`, are not
-supported.)
+Provides a Content Security Policy nonce to use when creating the style sheets for the editor. Holds the empty string when no nonce has been provided.
 
-static scrollMargins `:`Facet `<`fn `(`view `:`EditorView `) →`Partial `<`Rect `> |`null `>`Facet that allows extensions to provide additional scroll
-margins (space around the sides of the scrolling element that
-should be considered invisible). This can be useful when the
-plugin introduces elements that cover part of that element (for
-example a horizontally fixed gutter).
+`static **[contentAttributes](#view.EditorView^contentAttributes)**: [Facet](#state.Facet)<  [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)> |  fn([view](#view.EditorView^contentAttributes^view): [EditorView](#view.EditorView)) → [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)> | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-static theme `(`spec `:`Object `<`StyleSpec `>,`options `⁠?: {`dark `⁠?:`boolean `}) →`Extension Create a theme extension. The first argument can be a
+Facet that provides additional DOM attributes for the editor's editable DOM element.
 
-`style-mod`style spec providing the styles for the theme. These will be
-prefixed with a generated class for the style.
+`static **[editorAttributes](#view.EditorView^editorAttributes)**: [Facet](#state.Facet)<  [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)> |  fn([view](#view.EditorView^editorAttributes^view): [EditorView](#view.EditorView)) → [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)> | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-Because the selectors will be prefixed with a scope class, rule
-that directly match the editor's
+Facet that provides DOM attributes for the editor's outer element.
 
-wrapper
-element —to which the scope class will be
-added—need to be explicitly differentiated by adding an
+`static **[lineWrapping](#view.EditorView^lineWrapping)**: [Extension](#state.Extension)`
 
-`&`to
-the selector for that element—for example
+An extension that enables line wrapping in the editor (by setting CSS `white-space` to `pre-wrap` in the content).
 
-`&.cm-focused`.
+`static **[announce](#view.EditorView^announce)**: [StateEffectType](#state.StateEffectType)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-When
+State effect used to include screen reader announcements in a transaction. These will be added to the DOM in a visually hidden element with `aria-live="polite"` set, and should be used to describe effects that are visually obvious but may not be noticed by screen reader users (such as moving to the next search match).
 
-`dark`is set to true, the theme will be marked as dark,
-which will cause the
+`static **[findFromDOM](#view.EditorView^findFromDOM)**([dom](#view.EditorView^findFromDOM^dom): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)) → [EditorView](#view.EditorView) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`&dark`rules from
+Retrieve an editor view instance from the view's DOM representation.
 
-base
-themes to be used (as opposed to
+`enum **[Direction](#view.Direction)**`
 
-`&light`when a light theme is active).
+Used to indicate [text direction](#view.EditorView.textDirection).
 
-static darkTheme `:`Facet `<`boolean `,`boolean `>`This facet records whether a dark theme is active. The extension
-returned by
+`**[LTR](#view.Direction.LTR)**`
 
-`theme`automatically
-includes an instance of this when the
+Left-to-right.
 
-`dark`option is set to
-true.
+`**[RTL](#view.Direction.RTL)**`
 
-static baseTheme `(`spec `:`Object `<`StyleSpec `>) →`Extension Create an extension that adds styles to the base theme. Like
-with
+Right-to-left.
 
-`theme`, use
+#### `class` [BlockInfo](#view.BlockInfo)
 
-`&`to indicate the
-place of the editor wrapper element when directly targeting
-that. You can also use
+Record used to represent information about a block-level element in the editor view.
 
-`&dark`or
+`**[from](#view.BlockInfo.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`&light`instead to only
-target editors with a dark or light theme.
+The start of the element in the document.
 
-static cspNonce `:`Facet `<`string `,`string `>`Provides a Content Security Policy nonce to use when creating
-the style sheets for the editor. Holds the empty string when no
-nonce has been provided.
+`**[length](#view.BlockInfo.length)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static contentAttributes `:`Facet `<`Object < string > | fn ( view : EditorView ) → Object < string > | null `>`Facet that provides additional DOM attributes for the editor's
-editable DOM element.
+The length of the element.
 
-static editorAttributes `:`Facet `<`Object < string > | fn ( view : EditorView ) → Object < string > | null `>`Facet that provides DOM attributes for the editor's outer
-element.
+`**[top](#view.BlockInfo.top)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static lineWrapping `:`Extension An extension that enables line wrapping in the editor (by
-setting CSS
+The top position of the element (relative to the top of the document).
 
-`white-space`to
+`**[height](#view.BlockInfo.height)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`pre-wrap`in the content).
+Its height.
 
-static announce `:`StateEffectType `<`string `>`State effect used to include screen reader announcements in a
-transaction. These will be added to the DOM in a visually hidden
-element with
+`**[type](#view.BlockInfo.type)**: [BlockType](#view.BlockType) | readonly [BlockInfo](#view.BlockInfo)[]`
 
-`aria-live="polite"`set, and should be used to
-describe effects that are visually obvious but may not be
-noticed by screen reader users (such as moving to the next
-search match).
+The type of element this is. When querying lines, this may be an array of all the blocks that make up the line.
 
-static findFromDOM `(`dom `:`HTMLElement `) →`EditorView `|`null Retrieve an editor view instance from the view's DOM
-representation.
+`**[to](#view.BlockInfo.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-enum Direction Used to indicate
+The end of the element as a document position.
 
-text direction .
+`**[bottom](#view.BlockInfo.bottom)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-LTR Left-to-right.
+The bottom position of the element.
 
-RTL Right-to-left.
+`**[widget](#view.BlockInfo.widget)**: [WidgetType](#view.WidgetType) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-class BlockInfo Record used to represent information about a block-level element
-in the editor view.
+If this is a widget block, this will return the widget associated with it.
 
-from `:`number The start of the element in the document.
+`**[widgetLineBreaks](#view.BlockInfo.widgetLineBreaks)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-length `:`number The length of the element.
+If this is a textblock, this holds the number of line breaks that appear in widgets inside the block.
 
-top `:`number The top position of the element (relative to the top of the
-document).
+`enum **[BlockType](#view.BlockType)**`
 
-height `:`number Its height.
+The different types of blocks that can occur in an editor view.
 
-type `:`BlockType `|`readonly BlockInfo `[]`The type of element this is. When querying lines, this may be
-an array of all the blocks that make up the line.
+`**[Text](#view.BlockType.Text)**`
 
-to `:`number The end of the element as a document position.
+A line of text.
 
-bottom `:`number The bottom position of the element.
+`**[WidgetBefore](#view.BlockType.WidgetBefore)**`
 
-widget `:`WidgetType `|`null If this is a widget block, this will return the widget
-associated with it.
+A block widget associated with the position after it.
 
-widgetLineBreaks `:`number If this is a textblock, this holds the number of line breaks
-that appear in widgets inside the block.
+`**[WidgetAfter](#view.BlockType.WidgetAfter)**`
 
-enum BlockType The different types of blocks that can occur in an editor view.
+A block widget associated with the position before it.
 
-Text A line of text.
+`**[WidgetRange](#view.BlockType.WidgetRange)**`
 
-WidgetBefore A block widget associated with the position after it.
+A block widget [replacing](#view.Decoration%5Ereplace) a range of content.
 
-WidgetAfter A block widget associated with the position before it.
+#### `class` [BidiSpan](#view.BidiSpan)
 
-WidgetRange A block widget
+Represents a contiguous range of text that has a single direction (as in left-to-right or right-to-left).
 
-replacing a range of content.
+`**[dir](#view.BidiSpan.dir)**: [Direction](#view.Direction)`
 
-class BidiSpan Represents a contiguous range of text that has a single direction
-(as in left-to-right or right-to-left).
+The direction of this span.
 
-dir `:`Direction The direction of this span.
+`**[from](#view.BidiSpan.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-from `:`number The start of the span (relative to the start of the line).
+The start of the span (relative to the start of the line).
 
-to `:`number The end of the span.
+`**[to](#view.BidiSpan.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-level `:`number The
+The end of the span.
 
-"bidi
-level" of the span (in this context, 0 means
-left-to-right, 1 means right-to-left, 2 means left-to-right
-number inside right-to-left text).
+`**[level](#view.BidiSpan.level)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-type DOMEventHandlers `<`This `> = {`[ event in keyof DOMEventMap ]: fn ( event : DOMEventMap [ event ], view : EditorView ) → boolean | undefined `}`Event handlers are specified with objects like this. For event
-types known by TypeScript, this will infer the event argument type
-to hold the appropriate event object type. For unknown events, it
-is inferred to
+The ["bidi level"](https://unicode.org/reports/tr9/#Basic_Display_Algorithm) of the span (in this context, 0 means left-to-right, 1 means right-to-left, 2 means left-to-right number inside right-to-left text).
 
-`any`, and should be explicitly set if you want type
-checking.
+`type **[DOMEventHandlers](#view.DOMEventHandlers)**<[This](#view.DOMEventHandlers^This)> = {  [[event](#view.DOMEventHandlers^event) in keyof [DOMEventMap](#view.DOMEventMap)]: fn([event](#view.DOMEventHandlers^event): [DOMEventMap](#view.DOMEventMap)[[event](#view.DOMEventHandlers^event)], [view](#view.DOMEventHandlers^view): [EditorView](#view.EditorView)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)  }`
 
-interface DOMEventMap extends HTMLElementEventMap Helper type that maps event names to event object types, or the
+Event handlers are specified with objects like this. For event types known by TypeScript, this will infer the event argument type to hold the appropriate event object type. For unknown events, it is inferred to `any`, and should be explicitly set if you want type checking.
 
-`any`type for unknown events.
+#### `interface` [DOMEventMap](#view.DOMEventMap) `extends [HTMLElementEventMap](https://typhonjs-typedoc.github.io/ts-lib-docs/2023/dom/interfaces/HTMLElementEventMap.html)`
 
-[string] `:`any interface Rect Basic rectangle type.
+Helper type that maps event names to event object types, or the `any` type for unknown events.
 
-left `:`number right `:`number top `:`number bottom `:`number ### Extending the View
+`**[[string]](#view.DOMEventMap^string)**: any`
 
-type Command `=`fn `(`target `:`EditorView `) →`boolean Command functions are used in key bindings and other types of user
-actions. Given an editor view, they check whether their effect can
-apply to the editor, and if it can, perform it as a side effect
-(which usually means
+#### `interface` [Rect](#view.Rect)
 
-dispatching a
-transaction) and return
+Basic rectangle type.
 
-`true`.
+`**[left](#view.Rect.left)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-class ViewPlugin `<`V extends PluginValue `>`View plugins associate stateful values with a view. They can
-influence the way the content is drawn, and are notified of things
-that happen in the view.
+`**[right](#view.Rect.right)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-extension `:`Extension Instances of this class act as extensions.
+`**[top](#view.Rect.top)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static define `<`V extends PluginValue `>(`create `:`fn `(`view `:`EditorView `) →`V `,`spec `⁠?:`PluginSpec `<`V `>) →`ViewPlugin `<`V `>`Define a plugin from a constructor function that creates the
-plugin's value, given an editor view.
+`**[bottom](#view.Rect.bottom)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-static fromClass `<`V extends PluginValue `>(`cls `: {`new `(`view `:`EditorView `) →`V `},`spec `⁠?:`PluginSpec `<`V `>) →`ViewPlugin `<`V `>`Create a plugin for a class whose constructor takes a single
-editor view as argument.
+### Extending the View
 
-interface PluginValue extends Object This is the interface plugin objects conform to.
+`type **[Command](#view.Command)** = fn([target](#view.Command^target): [EditorView](#view.EditorView)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-update `⁠?:`fn `(`update `:`ViewUpdate `)`Notifies the plugin of an update that happened in the view. This
-is called
+Command functions are used in key bindings and other types of user actions. Given an editor view, they check whether their effect can apply to the editor, and if it can, perform it as a side effect (which usually means [dispatching](#view.EditorView.dispatch) a transaction) and return `true`.
 
-before the view updates its own DOM. It is
-responsible for updating the plugin's internal state (including
-any state that may be read by plugin fields) and
+#### `class` [ViewPlugin](#view.ViewPlugin)`<[V](#view.ViewPlugin^V) extends [PluginValue](#view.PluginValue)>`
 
-writing to
-the DOM for the changes in the update. To avoid unnecessary
-layout recomputations, it should
+View plugins associate stateful values with a view. They can influence the way the content is drawn, and are notified of things that happen in the view.
 
-not read the DOM layout—use
+`**[extension](#view.ViewPlugin.extension)**: [Extension](#state.Extension)`
 
-`requestMeasure`to schedule
-your code in a DOM reading phase if you need to.
+Instances of this class act as extensions.
 
-docViewUpdate `⁠?:`fn `(`view `:`EditorView `)`Called when the document view is updated (due to content,
-decoration, or viewport changes). Should not try to immediately
-start another view update. Often useful for calling
+`static **[define](#view.ViewPlugin^define)**<[V](#view.ViewPlugin^define^V) extends [PluginValue](#view.PluginValue)>([create](#view.ViewPlugin^define^create): fn([view](#view.ViewPlugin^define^create^view): [EditorView](#view.EditorView)) → [V](#view.ViewPlugin^define^V), [spec](#view.ViewPlugin^define^spec)⁠?: [PluginSpec](#view.PluginSpec)<[V](#view.ViewPlugin^define^V)>) → [ViewPlugin](#view.ViewPlugin)<[V](#view.ViewPlugin^define^V)>`
 
-`requestMeasure`.
+Define a plugin from a constructor function that creates the plugin's value, given an editor view.
 
-destroy `⁠?:`fn `()`Called when the plugin is no longer going to be used. Should
-revert any changes the plugin made to the DOM.
+`static **[fromClass](#view.ViewPlugin^fromClass)**<[V](#view.ViewPlugin^fromClass^V) extends [PluginValue](#view.PluginValue)>([cls](#view.ViewPlugin^fromClass^cls): {new ([view](#view.ViewPlugin^fromClass^cls^view): [EditorView](#view.EditorView)) → [V](#view.ViewPlugin^fromClass^V)}, [spec](#view.ViewPlugin^fromClass^spec)⁠?: [PluginSpec](#view.PluginSpec)<[V](#view.ViewPlugin^fromClass^V)>) → [ViewPlugin](#view.ViewPlugin)<[V](#view.ViewPlugin^fromClass^V)>`
 
-interface PluginSpec `<`V extends PluginValue `>`Provides additional information when defining a
+Create a plugin for a class whose constructor takes a single editor view as argument.
 
-view
-plugin .
+#### `interface` [PluginValue](#view.PluginValue) `extends [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)`
 
-eventHandlers `⁠?:`DOMEventHandlers `<`V `>`Register the given
+This is the interface plugin objects conform to.
 
-event
-handlers for the plugin.
-When called, these will have their
+`**[update](#view.PluginValue.update)**⁠?: fn([update](#view.PluginValue.update^update): [ViewUpdate](#view.ViewUpdate))`
 
-`this`bound to the plugin
-value.
+Notifies the plugin of an update that happened in the view. This is called _before_ the view updates its own DOM. It is responsible for updating the plugin's internal state (including any state that may be read by plugin fields) and _writing_ to the DOM for the changes in the update. To avoid unnecessary layout recomputations, it should _not_ read the DOM layout—use [`requestMeasure`](#view.EditorView.requestMeasure) to schedule your code in a DOM reading phase if you need to.
 
-eventObservers `⁠?:`DOMEventHandlers `<`V `>`Registers
+`**[docViewUpdate](#view.PluginValue.docViewUpdate)**⁠?: fn([view](#view.PluginValue.docViewUpdate^view): [EditorView](#view.EditorView))`
 
-event observers for the plugin. Will, when called, have their
+Called when the document view is updated (due to content, decoration, or viewport changes). Should not try to immediately start another view update. Often useful for calling [`requestMeasure`](#view.EditorView.requestMeasure).
 
-`this`bound to
-the plugin value.
+`**[destroy](#view.PluginValue.destroy)**⁠?: fn()`
 
-provide `⁠?:`fn `(`plugin `:`ViewPlugin `<`V `>) →`Extension Specify that the plugin provides additional extensions when
-added to an editor configuration.
+Called when the plugin is no longer going to be used. Should revert any changes the plugin made to the DOM.
 
-decorations `⁠?:`fn `(`value `:`V `) →`DecorationSet Allow the plugin to provide decorations. When given, this should
-be a function that take the plugin value and return a
+#### `interface` [PluginSpec](#view.PluginSpec)`<[V](#view.PluginSpec^V) extends [PluginValue](#view.PluginValue)>`
 
-decoration set . See also the caveat about
+Provides additional information when defining a [view plugin](#view.ViewPlugin).
 
-layout-changing decorations that
-depend on the view.
+`**[eventHandlers](#view.PluginSpec.eventHandlers)**⁠?: [DOMEventHandlers](#view.DOMEventHandlers)<[V](#view.PluginSpec^V)>`
 
-class ViewUpdate View
+Register the given [event handlers](#view.EditorView%5EdomEventHandlers) for the plugin. When called, these will have their `this` bound to the plugin value.
 
-plugins are given instances of this
-class, which describe what happened, whenever the view is updated.
+`**[eventObservers](#view.PluginSpec.eventObservers)**⁠?: [DOMEventHandlers](#view.DOMEventHandlers)<[V](#view.PluginSpec^V)>`
 
-changes `:`ChangeSet The changes made to the document by this update.
+Registers [event observers](#view.EditorView%5EdomEventObservers) for the plugin. Will, when called, have their `this` bound to the plugin value.
 
-startState `:`EditorState The previous editor state.
+`**[provide](#view.PluginSpec.provide)**⁠?: fn([plugin](#view.PluginSpec.provide^plugin): [ViewPlugin](#view.ViewPlugin)<[V](#view.PluginSpec^V)>) → [Extension](#state.Extension)`
 
-view `:`EditorView The editor view that the update is associated with.
+Specify that the plugin provides additional extensions when added to an editor configuration.
 
-state `:`EditorState The new editor state.
+`**[decorations](#view.PluginSpec.decorations)**⁠?: fn([value](#view.PluginSpec.decorations^value): [V](#view.PluginSpec^V)) → [DecorationSet](#view.DecorationSet)`
 
-transactions `:`readonly Transaction `[]`The transactions involved in the update. May be empty.
+Allow the plugin to provide decorations. When given, this should be a function that take the plugin value and return a [decoration set](#view.DecorationSet). See also the caveat about [layout-changing decorations](#view.EditorView%5Edecorations) that depend on the view.
 
-viewportChanged `:`boolean Tells you whether the
+#### `class` [ViewUpdate](#view.ViewUpdate)
 
-viewport or
+View [plugins](#view.ViewPlugin) are given instances of this class, which describe what happened, whenever the view is updated.
 
-visible ranges changed in this
-update.
+`**[changes](#view.ViewUpdate.changes)**: [ChangeSet](#state.ChangeSet)`
 
-viewportMoved `:`boolean Returns true when
+The changes made to the document by this update.
 
-`viewportChanged`is true
-and the viewport change is not just the result of mapping it in
-response to document changes.
+`**[startState](#view.ViewUpdate.startState)**: [EditorState](#state.EditorState)`
 
-heightChanged `:`boolean Indicates whether the height of a block element in the editor
-changed in this update.
+The previous editor state.
 
-geometryChanged `:`boolean Returns true when the document was modified or the size of the
-editor, or elements within the editor, changed.
+`**[view](#view.ViewUpdate.view)**: [EditorView](#view.EditorView)`
 
-focusChanged `:`boolean True when this update indicates a focus change.
+The editor view that the update is associated with.
 
-docChanged `:`boolean Whether the document changed in this update.
+`**[state](#view.ViewUpdate.state)**: [EditorState](#state.EditorState)`
 
-selectionSet `:`boolean Whether the selection was explicitly set in this update.
+The new editor state.
 
-logException `(`state `:`EditorState `,`exception `:`any `,`context `⁠?:`string `)`Log or report an unhandled exception in client code. Should
-probably only be used by extension code that allows client code to
-provide functions, and calls those functions in a context where an
-exception can't be propagated to calling code in a reasonable way
-(for example when in an event handler).
+`**[transactions](#view.ViewUpdate.transactions)**: readonly [Transaction](#state.Transaction)[]`
 
-Either calls a handler registered with
+The transactions involved in the update. May be empty.
 
-`EditorView.exceptionSink`,
+`**[viewportChanged](#view.ViewUpdate.viewportChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`window.onerror`, if defined, or
+Tells you whether the [viewport](#view.EditorView.viewport) or [visible ranges](#view.EditorView.visibleRanges) changed in this update.
 
-`console.error`(in which case
-it'll pass
+`**[viewportMoved](#view.ViewUpdate.viewportMoved)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`context`, when given, as first argument).
+Returns true when [`viewportChanged`](#view.ViewUpdate.viewportChanged) is true and the viewport change is not just the result of mapping it in response to document changes.
 
-interface MouseSelectionStyle Interface that objects registered with
+`**[heightChanged](#view.ViewUpdate.heightChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`EditorView.mouseSelectionStyle`must conform to.
+Indicates whether the height of a block element in the editor changed in this update.
 
-get `(`curEvent : MouseEvent , extend : boolean , multiple : boolean `) →`EditorSelection Return a new selection for the mouse gesture that starts with
-the event that was originally given to the constructor, and ends
-with the event passed here. In case of a plain click, those may
-both be the
+`**[geometryChanged](#view.ViewUpdate.geometryChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`mousedown`event, in case of a drag gesture, the
-latest
+Returns true when the document was modified or the size of the editor, or elements within the editor, changed.
 
-`mousemove`event will be passed.
+`**[focusChanged](#view.ViewUpdate.focusChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-When
+True when this update indicates a focus change.
 
-`extend`is true, that means the new selection should, if
-possible, extend the start selection. If
+`**[docChanged](#view.ViewUpdate.docChanged)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`multiple`is true, the
-new selection should be added to the original selection.
+Whether the document changed in this update.
 
-update `(`update `:`ViewUpdate `) →`boolean `|`undefined Called when the view is updated while the gesture is in
-progress. When the document changes, it may be necessary to map
-some data (like the original selection or start position)
-through the changes.
+`**[selectionSet](#view.ViewUpdate.selectionSet)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-This may return
+Whether the selection was explicitly set in this update.
 
-`true`to indicate that the
+`**[logException](#view.logException)**([state](#view.logException^state): [EditorState](#state.EditorState), [exception](#view.logException^exception): any, [context](#view.logException^context)⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String))`
 
-`get`method should
-get queried again after the update, because something in the
-update could change its result. Be wary of infinite loops when
-using this (where
+Log or report an unhandled exception in client code. Should probably only be used by extension code that allows client code to provide functions, and calls those functions in a context where an exception can't be propagated to calling code in a reasonable way (for example when in an event handler).
 
-`get`returns a new selection, which will
-trigger
+Either calls a handler registered with [`EditorView.exceptionSink`](#view.EditorView%5EexceptionSink), `window.onerror`, if defined, or `console.error` (in which case it'll pass `context`, when given, as first argument).
 
-`update`, which schedules another
+#### `interface` [MouseSelectionStyle](#view.MouseSelectionStyle)
 
-`get`in response).
+Interface that objects registered with [`EditorView.mouseSelectionStyle`](#view.EditorView%5EmouseSelectionStyle) must conform to.
 
-drawSelection `(`config `⁠?:`Object = {} `) →`Extension Returns an extension that hides the browser's native selection and
-cursor, replacing the selection with a background behind the text
-(with the
+`**[get](#view.MouseSelectionStyle.get)**(  [curEvent](#view.MouseSelectionStyle.get^curEvent): [MouseEvent](https://developer.mozilla.org/en/docs/DOM/MouseEvent),  [extend](#view.MouseSelectionStyle.get^extend): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [multiple](#view.MouseSelectionStyle.get^multiple): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  ) → [EditorSelection](#state.EditorSelection)`
 
-`cm-selectionBackground`class), and the
-cursors with elements overlaid over the code (using
+Return a new selection for the mouse gesture that starts with the event that was originally given to the constructor, and ends with the event passed here. In case of a plain click, those may both be the `mousedown` event, in case of a drag gesture, the latest `mousemove` event will be passed.
 
-`cm-cursor-primary`and
+When `extend` is true, that means the new selection should, if possible, extend the start selection. If `multiple` is true, the new selection should be added to the original selection.
 
-`cm-cursor-secondary`).
+`**[update](#view.MouseSelectionStyle.update)**([update](#view.MouseSelectionStyle.update^update): [ViewUpdate](#view.ViewUpdate)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-This allows the editor to display secondary selection ranges, and
-tends to produce a type of selection more in line with that users
-expect in a text editor (the native selection styling will often
-leave gaps between lines and won't fill the horizontal space after
-a line when the selection continues past it).
+Called when the view is updated while the gesture is in progress. When the document changes, it may be necessary to map some data (like the original selection or start position) through the changes.
 
-It does have a performance cost, in that it requires an extra DOM
-layout cycle for many updates (the selection is drawn based on DOM
-layout information that's only available after laying out the
-content).
+This may return `true` to indicate that the `get` method should get queried again after the update, because something in the update could change its result. Be wary of infinite loops when using this (where `get` returns a new selection, which will trigger `update`, which schedules another `get` in response).
 
-config cursorBlinkRate `⁠?:`number The length of a full cursor blink cycle, in milliseconds.
-Defaults to 1200. Can be set to 0 to disable blinking.
+`**[drawSelection](#view.drawSelection)**([config](#view.drawSelection^config)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [Extension](#state.Extension)`
 
-drawRangeCursor `⁠?:`boolean Whether to show a cursor for non-empty ranges. Defaults to
-true.
+Returns an extension that hides the browser's native selection and cursor, replacing the selection with a background behind the text (with the `cm-selectionBackground` class), and the cursors with elements overlaid over the code (using `cm-cursor-primary` and `cm-cursor-secondary`).
 
-getDrawSelectionConfig `(`state `:`EditorState `) →`Object Retrieve the
+This allows the editor to display secondary selection ranges, and tends to produce a type of selection more in line with that users expect in a text editor (the native selection styling will often leave gaps between lines and won't fill the horizontal space after a line when the selection continues past it).
 
-`drawSelection`configuration
-for this state. (Note that this will return a set of defaults even
-if
+It does have a performance cost, in that it requires an extra DOM layout cycle for many updates (the selection is drawn based on DOM layout information that's only available after laying out the content).
 
-`drawSelection`isn't enabled.)
+`**[config](#view.drawSelection^config)**`
 
-dropCursor `() →`Extension Draws a cursor at the current drop position when something is
-dragged over the editor.
+`**[cursorBlinkRate](#view.drawSelection^config.cursorBlinkRate)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-highlightActiveLine `() →`Extension Mark lines that have a cursor on them with the
+The length of a full cursor blink cycle, in milliseconds. Defaults to 1200. Can be set to 0 to disable blinking.
 
-`"cm-activeLine"`DOM class.
+`**[drawRangeCursor](#view.drawSelection^config.drawRangeCursor)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-highlightSpecialChars `(`config `⁠?:`Object = {} `) →`Extension Returns an extension that installs highlighting of special
-characters.
+Whether to show a cursor for non-empty ranges. Defaults to true.
 
-config Configuration options.
+`**[getDrawSelectionConfig](#view.getDrawSelectionConfig)**([state](#view.getDrawSelectionConfig^state): [EditorState](#state.EditorState)) → [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)`
 
-render `⁠?:`fn `(`code : number , description : string | null , placeholder : string `) →`HTMLElement An optional function that renders the placeholder elements.
+Retrieve the [`drawSelection`](#view.drawSelection) configuration for this state. (Note that this will return a set of defaults even if `drawSelection` isn't enabled.)
 
-The
+`**[dropCursor](#view.dropCursor)**() → [Extension](#state.Extension)`
 
-`description`argument will be text that clarifies what the
-character is, which should be provided to screen readers (for
-example with the
+Draws a cursor at the current drop position when something is dragged over the editor.
 
-`aria-label`attribute) and optionally shown to the user in other ways (such
-as the
+`**[highlightActiveLine](#view.highlightActiveLine)**() → [Extension](#state.Extension)`
 
-`title`attribute).
+Mark lines that have a cursor on them with the `"cm-activeLine"` DOM class.
 
-The given placeholder string is a suggestion for how to display
-the character visually.
+`**[highlightSpecialChars](#view.highlightSpecialChars)**(config⁠?: Object = {}) → [Extension](#state.Extension)`
 
-specialChars `⁠?:`RegExp Regular expression that matches the special characters to
-highlight. Must have its 'g'/global flag set.
+Returns an extension that installs highlighting of special characters.
 
-addSpecialChars `⁠?:`RegExp Regular expression that can be used to add characters to the
-default set of characters to highlight.
+`**[config](#view.highlightSpecialChars^config)**`
 
-highlightWhitespace `() →`Extension Returns an extension that highlights whitespace, adding a
+Configuration options.
 
-`cm-highlightSpace`class to stretches of spaces, and a
+`**[render](#view.highlightSpecialChars^config.render)**⁠?: fn(  [code](#view.highlightSpecialChars^config.render^code): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [description](#view.highlightSpecialChars^config.render^description): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null),  [placeholder](#view.highlightSpecialChars^config.render^placeholder): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)  ) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-`cm-highlightTab`class to individual tab characters. By default,
-the former are shown as faint dots, and the latter as arrows.
+An optional function that renders the placeholder elements.
 
-highlightTrailingWhitespace `() →`Extension Returns an extension that adds a
+The `description` argument will be text that clarifies what the character is, which should be provided to screen readers (for example with the [`aria-label`](https://www.w3.org/TR/wai-aria/#aria-label) attribute) and optionally shown to the user in other ways (such as the [`title`](https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/title) attribute).
 
-`cm-trailingSpace`class to all
-trailing whitespace.
+The given placeholder string is a suggestion for how to display the character visually.
 
-placeholder `(`content : string | HTMLElement | fn ( view : EditorView ) → HTMLElement `) →`Extension Extension that enables a placeholder—a piece of example content
-to show when the editor is empty.
+`**[specialChars](#view.highlightSpecialChars^config.specialChars)**⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)`
 
-scrollPastEnd `() →`Extension Returns an extension that makes sure the content has a bottom
-margin equivalent to the height of the editor, minus one line
-height, so that every line in the document can be scrolled to the
-top of the editor.
+Regular expression that matches the special characters to highlight. Must have its 'g'/global flag set.
 
-This is only meaningful when the editor is scrollable, and should
-not be enabled in editors that take the size of their content.
+`**[addSpecialChars](#view.highlightSpecialChars^config.addSpecialChars)**⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)`
+
+Regular expression that can be used to add characters to the default set of characters to highlight.
+
+`**[highlightWhitespace](#view.highlightWhitespace)**() → [Extension](#state.Extension)`
+
+Returns an extension that highlights whitespace, adding a `cm-highlightSpace` class to stretches of spaces, and a `cm-highlightTab` class to individual tab characters. By default, the former are shown as faint dots, and the latter as arrows.
+
+`**[highlightTrailingWhitespace](#view.highlightTrailingWhitespace)**() → [Extension](#state.Extension)`
+
+Returns an extension that adds a `cm-trailingSpace` class to all trailing whitespace.
+
+`**[placeholder](#view.placeholder)**(  [content](#view.placeholder^content): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) |  [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement) |  fn([view](#view.placeholder^content^view): [EditorView](#view.EditorView)) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)  ) → [Extension](#state.Extension)`
+
+Extension that enables a placeholder—a piece of example content to show when the editor is empty.
+
+`**[scrollPastEnd](#view.scrollPastEnd)**() → [Extension](#state.Extension)`
+
+Returns an extension that makes sure the content has a bottom margin equivalent to the height of the editor, minus one line height, so that every line in the document can be scrolled to the top of the editor.
+
+This is only meaningful when the editor is scrollable, and should not be enabled in editors that take the size of their content.
 
 ### Key bindings
 
-interface KeyBinding Key bindings associate key names with
+#### `interface` [KeyBinding](#view.KeyBinding)
 
-command -style functions.
+Key bindings associate key names with [command](#view.Command)\-style functions.
 
-Key names may be strings like
+Key names may be strings like `"Shift-Ctrl-Enter"`—a key identifier prefixed with zero or more modifiers. Key identifiers are based on the strings that can appear in [`KeyEvent.key`](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key). Use lowercase letters to refer to letter keys (or uppercase letters if you want shift to be held). You may use `"Space"` as an alias for the `" "` name.
 
-`"Shift-Ctrl-Enter"`—a key identifier
-prefixed with zero or more modifiers. Key identifiers are based on
-the strings that can appear in
+Modifiers can be given in any order. `Shift-` (or `s-`), `Alt-` (or `a-`), `Ctrl-` (or `c-` or `Control-`) and `Cmd-` (or `m-` or `Meta-`) are recognized.
 
-`KeyEvent.key`.
-Use lowercase letters to refer to letter keys (or uppercase letters
-if you want shift to be held). You may use
+When a key binding contains multiple key names separated by spaces, it represents a multi-stroke binding, which will fire when the user presses the given keys after each other.
 
-`"Space"`as an alias
-for the
+You can use `Mod-` as a shorthand for `Cmd-` on Mac and `Ctrl-` on other platforms. So `Mod-b` is `Ctrl-b` on Linux but `Cmd-b` on macOS.
 
-`" "`name.
+`**[key](#view.KeyBinding.key)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-Modifiers can be given in any order.
+The key name to use for this binding. If the platform-specific property (`mac`, `win`, or `linux`) for the current platform is used as well in the binding, that one takes precedence. If `key` isn't defined and the platform-specific binding isn't either, a binding is ignored.
 
-`Shift-`(or
+`**[mac](#view.KeyBinding.mac)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`s-`),
+Key to use specifically on macOS.
 
-`Alt-`(or
+`**[win](#view.KeyBinding.win)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`a-`),
+Key to use specifically on Windows.
 
-`Ctrl-`(or
+`**[linux](#view.KeyBinding.linux)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`c-`or
+Key to use specifically on Linux.
 
-`Control-`) and
+`**[run](#view.KeyBinding.run)**⁠?: [Command](#view.Command)`
 
-`Cmd-`(or
+The command to execute when this binding is triggered. When the command function returns `false`, further bindings will be tried for the key.
 
-`m-`or
+`**[shift](#view.KeyBinding.shift)**⁠?: [Command](#view.Command)`
 
-`Meta-`) are recognized.
+When given, this defines a second binding, using the (possibly platform-specific) key name prefixed with `Shift-` to activate this command.
 
-When a key binding contains multiple key names separated by
-spaces, it represents a multi-stroke binding, which will fire when
-the user presses the given keys after each other.
+`**[any](#view.KeyBinding.any)**⁠?: fn([view](#view.KeyBinding.any^view): [EditorView](#view.EditorView), [event](#view.KeyBinding.any^event): [KeyboardEvent](https://developer.mozilla.org/en/docs/DOM/KeyboardEvent)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-You can use
+When this property is present, the function is called for every key that is not a multi-stroke prefix.
 
-`Mod-`as a shorthand for
+`**[scope](#view.KeyBinding.scope)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`Cmd-`on Mac and
+By default, key bindings apply when focus is on the editor content (the `"editor"` scope). Some extensions, mostly those that define their own panels, might want to allow you to register bindings local to that panel. Such bindings should use a custom scope name. You may also assign multiple scope names to a binding, separating them by spaces.
 
-`Ctrl-`on
-other platforms. So
+`**[preventDefault](#view.KeyBinding.preventDefault)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`Mod-b`is
+When set to true (the default is false), this will always prevent the further handling for the bound key, even if the command(s) return false. This can be useful for cases where the native behavior of the key is annoying or irrelevant but the command doesn't always apply (such as, Mod-u for undo selection, which would cause the browser to view source instead when no selection can be undone).
 
-`Ctrl-b`on Linux but
+`**[stopPropagation](#view.KeyBinding.stopPropagation)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`Cmd-b`on
-macOS.
+When set to true, `stopPropagation` will be called on keyboard events that have their `preventDefault` called in response to this key binding (see also [`preventDefault`](#view.KeyBinding.preventDefault)).
 
-key `⁠?:`string The key name to use for this binding. If the platform-specific
-property (
+`**[keymap](#view.keymap)**: [Facet](#state.Facet)<readonly [KeyBinding](#view.KeyBinding)[]>`
 
-`mac`,
+Facet used for registering keymaps.
 
-`win`, or
+You can add multiple keymaps to an editor. Their priorities determine their precedence (the ones specified early or with high priority get checked first). When a handler has returned `true` for a given key, no further handlers are called.
 
-`linux`) for the current platform is
-used as well in the binding, that one takes precedence. If
+`**[runScopeHandlers](#view.runScopeHandlers)**([view](#view.runScopeHandlers^view): [EditorView](#view.EditorView), [event](#view.runScopeHandlers^event): [KeyboardEvent](https://developer.mozilla.org/en/docs/DOM/KeyboardEvent), [scope](#view.runScopeHandlers^scope): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`key`isn't defined and the platform-specific binding isn't either,
-a binding is ignored.
-
-mac `⁠?:`string Key to use specifically on macOS.
-
-win `⁠?:`string Key to use specifically on Windows.
-
-linux `⁠?:`string Key to use specifically on Linux.
-
-run `⁠?:`Command The command to execute when this binding is triggered. When the
-command function returns
-
-`false`, further bindings will be tried
-for the key.
-
-shift `⁠?:`Command When given, this defines a second binding, using the (possibly
-platform-specific) key name prefixed with
-
-`Shift-`to activate
-this command.
-
-any `⁠?:`fn `(`view `:`EditorView `,`event `:`KeyboardEvent `) →`boolean When this property is present, the function is called for every
-key that is not a multi-stroke prefix.
-
-scope `⁠?:`string By default, key bindings apply when focus is on the editor
-content (the
-
-`"editor"`scope). Some extensions, mostly those
-that define their own panels, might want to allow you to
-register bindings local to that panel. Such bindings should use
-a custom scope name. You may also assign multiple scope names to
-a binding, separating them by spaces.
-
-preventDefault `⁠?:`boolean When set to true (the default is false), this will always
-prevent the further handling for the bound key, even if the
-command(s) return false. This can be useful for cases where the
-native behavior of the key is annoying or irrelevant but the
-command doesn't always apply (such as, Mod-u for undo selection,
-which would cause the browser to view source instead when no
-selection can be undone).
-
-stopPropagation `⁠?:`boolean When set to true,
-
-`stopPropagation`will be called on keyboard
-events that have their
-
-`preventDefault`called in response to
-this key binding (see also
-
-`preventDefault`).
-
-keymap `:`Facet `<`readonly KeyBinding `[]>`Facet used for registering keymaps.
-
-You can add multiple keymaps to an editor. Their priorities
-determine their precedence (the ones specified early or with high
-priority get checked first). When a handler has returned
-
-`true`for a given key, no further handlers are called.
-
-runScopeHandlers `(`view `:`EditorView `,`event `:`KeyboardEvent `,`scope `:`string `) →`boolean Run the key handlers registered for a given scope. The event
-object should be a
-
-`"keydown"`event. Returns true if any of the
-handlers handled it.
+Run the key handlers registered for a given scope. The event object should be a `"keydown"` event. Returns true if any of the handlers handled it.
 
 ### Decorations
 
-Your code should not try to directly change the DOM structure
-CodeMirror creates for its content—that will not work. Instead, the
-way to influence how things are drawn is by providing decorations,
-which can add styling or replace content with an alternative
-representation.
+Your code should not try to directly change the DOM structure CodeMirror creates for its content—that will not work. Instead, the way to influence how things are drawn is by providing decorations, which can add styling or replace content with an alternative representation.
 
-class Decoration extends RangeValue A decoration provides information on how to draw or style a piece
-of content. You'll usually use it wrapped in a
+#### `class` [Decoration](#view.Decoration) `extends [RangeValue](#state.RangeValue)`
 
-`Range`, which adds a start and end position.
+A decoration provides information on how to draw or style a piece of content. You'll usually use it wrapped in a [`Range`](#state.Range), which adds a start and end position.
 
-spec `:`any The config object used to create this decoration. You can
-include additional properties in there to store metadata about
-your decoration.
+`**[spec](#view.Decoration.spec)**: any`
 
-static mark `(`spec `:`Object `) →`Decoration Create a mark decoration, which influences the styling of the
-content in its range. Nested mark decorations will cause nested
-DOM elements to be created. Nesting order is determined by
-precedence of the
+The config object used to create this decoration. You can include additional properties in there to store metadata about your decoration.
 
-facet , with
-the higher-precedence decorations creating the inner DOM nodes.
-Such elements are split on line boundaries and on the boundaries
-of lower-precedence decorations.
+`static **[mark](#view.Decoration^mark)**([spec](#view.Decoration^mark^spec): Object) → [Decoration](#view.Decoration)`
 
-spec inclusive `⁠?:`boolean Whether the mark covers its start and end position or not. This
-influences whether content inserted at those positions becomes
-part of the mark. Defaults to false.
+Create a mark decoration, which influences the styling of the content in its range. Nested mark decorations will cause nested DOM elements to be created. Nesting order is determined by precedence of the [facet](#view.EditorView%5Edecorations), with the higher-precedence decorations creating the inner DOM nodes. Such elements are split on line boundaries and on the boundaries of lower-precedence decorations.
 
-inclusiveStart `⁠?:`boolean Specify whether the start position of the marked range should be
-inclusive. Overrides
+`**[spec](#view.Decoration^mark^spec)**`
 
-`inclusive`, when both are present.
+`**[inclusive](#view.Decoration^mark^spec.inclusive)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-inclusiveEnd `⁠?:`boolean Whether the end should be inclusive.
+Whether the mark covers its start and end position or not. This influences whether content inserted at those positions becomes part of the mark. Defaults to false.
 
-attributes `⁠?:`Object `<`string `>`Add attributes to the DOM elements that hold the text in the
-marked range.
+`**[inclusiveStart](#view.Decoration^mark^spec.inclusiveStart)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-class `⁠?:`string Shorthand for
+Specify whether the start position of the marked range should be inclusive. Overrides `inclusive`, when both are present.
 
-`{attributes: {class: value}}`.
+`**[inclusiveEnd](#view.Decoration^mark^spec.inclusiveEnd)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-tagName `⁠?:`string Add a wrapping element around the text in the marked range. Note
-that there will not necessarily be a single element covering the
-entire range—other decorations with lower precedence might split
-this one if they partially overlap it, and line breaks always
-end decoration elements.
+Whether the end should be inclusive.
 
-bidiIsolate `⁠?:`Direction When using sets of decorations in
+`**[attributes](#view.Decoration^mark^spec.attributes)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-`bidiIsolatedRanges`,
-this property provides the direction of the isolates. When null
-or not given, it indicates the range has
+Add attributes to the DOM elements that hold the text in the marked range.
 
-`dir=auto`, and its
-direction should be derived from the first strong directional
-character in it.
+`**[class](#view.Decoration^mark^spec.class)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-[string] `:`any Decoration specs allow extra properties, which can be retrieved
-through the decoration's
+Shorthand for `{attributes: {class: value}}`.
 
-`spec`property.
+`**[tagName](#view.Decoration^mark^spec.tagName)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-static widget `(`spec `:`Object `) →`Decoration Create a widget decoration, which displays a DOM element at the
-given position.
+Add a wrapping element around the text in the marked range. Note that there will not necessarily be a single element covering the entire range—other decorations with lower precedence might split this one if they partially overlap it, and line breaks always end decoration elements.
 
-spec widget `:`WidgetType The type of widget to draw here.
+`**[bidiIsolate](#view.Decoration^mark^spec.bidiIsolate)**⁠?: [Direction](#view.Direction)`
 
-side `⁠?:`number Which side of the given position the widget is on. When this is
-positive, the widget will be drawn after the cursor if the
-cursor is on the same position. Otherwise, it'll be drawn before
-it. When multiple widgets sit at the same position, their
+When using sets of decorations in [`bidiIsolatedRanges`](##view.EditorView%5EbidiIsolatedRanges), this property provides the direction of the isolates. When null or not given, it indicates the range has `dir=auto`, and its direction should be derived from the first strong directional character in it.
 
-`side`values will determine their ordering—those with a lower value
-come first. Defaults to 0. May not be more than 10000 or less
-than -10000.
+`**[[string]](#view.Decoration^mark^spec^string)**: any`
 
-inlineOrder `⁠?:`boolean By default, to avoid unintended mixing of block and inline
-widgets, block widgets with a positive
+Decoration specs allow extra properties, which can be retrieved through the decoration's [`spec`](#view.Decoration.spec) property.
 
-`side`are always drawn
-after all inline widgets at that position, and those with a
-non-positive side before inline widgets. Setting this option to
+`static **[widget](#view.Decoration^widget)**([spec](#view.Decoration^widget^spec): Object) → [Decoration](#view.Decoration)`
 
-`true`for a block widget will turn this off and cause it to be
-rendered between the inline widgets, ordered by
+Create a widget decoration, which displays a DOM element at the given position.
 
-`side`.
+`**[spec](#view.Decoration^widget^spec)**`
 
-block `⁠?:`boolean Determines whether this is a block widgets, which will be drawn
-between lines, or an inline widget (the default) which is drawn
-between the surrounding text.
+`**[widget](#view.Decoration^widget^spec.widget)**: [WidgetType](#view.WidgetType)`
 
-Note that block-level decorations should not have vertical
-margins, and if you dynamically change their height, you should
-make sure to call
+The type of widget to draw here.
 
-`requestMeasure`, so that the
-editor can update its information about its vertical layout.
+`**[side](#view.Decoration^widget^spec.side)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-[string] `:`any Other properties are allowed.
+Which side of the given position the widget is on. When this is positive, the widget will be drawn after the cursor if the cursor is on the same position. Otherwise, it'll be drawn before it. When multiple widgets sit at the same position, their `side` values will determine their ordering—those with a lower value come first. Defaults to 0. May not be more than 10000 or less than -10000.
 
-static replace `(`spec `:`Object `) →`Decoration Create a replace decoration which replaces the given range with
-a widget, or simply hides it.
+`**[inlineOrder](#view.Decoration^widget^spec.inlineOrder)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-spec widget `⁠?:`WidgetType An optional widget to drawn in the place of the replaced
-content.
+By default, to avoid unintended mixing of block and inline widgets, block widgets with a positive `side` are always drawn after all inline widgets at that position, and those with a non-positive side before inline widgets. Setting this option to `true` for a block widget will turn this off and cause it to be rendered between the inline widgets, ordered by `side`.
 
-inclusive `⁠?:`boolean Whether this range covers the positions on its sides. This
-influences whether new content becomes part of the range and
-whether the cursor can be drawn on its sides. Defaults to false
-for inline replacements, and true for block replacements.
+`**[block](#view.Decoration^widget^spec.block)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-inclusiveStart `⁠?:`boolean Set inclusivity at the start.
+Determines whether this is a block widgets, which will be drawn between lines, or an inline widget (the default) which is drawn between the surrounding text.
 
-inclusiveEnd `⁠?:`boolean Set inclusivity at the end.
+Note that block-level decorations should not have vertical margins, and if you dynamically change their height, you should make sure to call [`requestMeasure`](#view.EditorView.requestMeasure), so that the editor can update its information about its vertical layout.
 
-block `⁠?:`boolean Whether this is a block-level decoration. Defaults to false.
+`**[[string]](#view.Decoration^widget^spec^string)**: any`
 
-[string] `:`any Other properties are allowed.
+Other properties are allowed.
 
-static line `(`spec `:`Object `) →`Decoration Create a line decoration, which can add DOM attributes to the
-line starting at the given position.
+`static **[replace](#view.Decoration^replace)**([spec](#view.Decoration^replace^spec): Object) → [Decoration](#view.Decoration)`
 
-spec attributes `⁠?:`Object `<`string `>`DOM attributes to add to the element wrapping the line.
+Create a replace decoration which replaces the given range with a widget, or simply hides it.
 
-class `⁠?:`string Shorthand for
+`**[spec](#view.Decoration^replace^spec)**`
 
-`{attributes: {class: value}}`.
+`**[widget](#view.Decoration^replace^spec.widget)**⁠?: [WidgetType](#view.WidgetType)`
 
-[string] `:`any Other properties are allowed.
+An optional widget to drawn in the place of the replaced content.
 
-static set `(`of : Range < Decoration > | readonly Range < Decoration >[], sort ⁠?: boolean = false `) →`DecorationSet Build a
+`**[inclusive](#view.Decoration^replace^spec.inclusive)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`DecorationSet`from the given
-decorated range or ranges. If the ranges aren't already sorted,
-pass
+Whether this range covers the positions on its sides. This influences whether new content becomes part of the range and whether the cursor can be drawn on its sides. Defaults to false for inline replacements, and true for block replacements.
 
-`true`for
+`**[inclusiveStart](#view.Decoration^replace^spec.inclusiveStart)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`sort`to make the library sort them for you.
+Set inclusivity at the start.
 
-static none `:`DecorationSet The empty set of decorations.
+`**[inclusiveEnd](#view.Decoration^replace^spec.inclusiveEnd)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-type DecorationSet `=`RangeSet `<`Decoration `>`A decoration set represents a collection of decorated ranges,
-organized for efficient access and mapping. See
+Set inclusivity at the end.
 
-`RangeSet`for its methods.
+`**[block](#view.Decoration^replace^spec.block)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-abstract class WidgetType Widgets added to the content are described by subclasses of this
-class. Using a description object like that makes it possible to
-delay creating of the DOM structure for a widget until it is
-needed, and to avoid redrawing widgets even if the decorations
-that define them are recreated.
+Whether this is a block-level decoration. Defaults to false.
 
-abstract toDOM `(`view `:`EditorView `) →`HTMLElement Build the DOM structure for this widget instance.
+`**[[string]](#view.Decoration^replace^spec^string)**: any`
 
-eq `(`widget `:`WidgetType `) →`boolean Compare this instance to another instance of the same type.
-(TypeScript can't express this, but only instances of the same
-specific class will be passed to this method.) This is used to
-avoid redrawing widgets when they are replaced by a new
-decoration of the same type. The default implementation just
-returns
+Other properties are allowed.
 
-`false`, which will cause new instances of the widget to
-always be redrawn.
+`static **[line](#view.Decoration^line)**([spec](#view.Decoration^line^spec): Object) → [Decoration](#view.Decoration)`
 
-updateDOM `(`dom `:`HTMLElement `,`view `:`EditorView `) →`boolean Update a DOM element created by a widget of the same type (but
-different, non-
+Create a line decoration, which can add DOM attributes to the line starting at the given position.
 
-`eq`content) to reflect this widget. May return
-true to indicate that it could update, false to indicate it
-couldn't (in which case the widget will be redrawn). The default
-implementation just returns false.
+`**[spec](#view.Decoration^line^spec)**`
 
-estimatedHeight `:`number The estimated height this widget will have, to be used when
-estimating the height of content that hasn't been drawn. May
-return -1 to indicate you don't know. The default implementation
-returns -1.
+`**[attributes](#view.Decoration^line^spec.attributes)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-lineBreaks `:`number For inline widgets that are displayed inline (as opposed to
+DOM attributes to add to the element wrapping the line.
 
-`inline-block`) and introduce line breaks (through
+`**[class](#view.Decoration^line^spec.class)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`<br>`tags
-or textual newlines), this must indicate the amount of line
-breaks they introduce. Defaults to 0.
+Shorthand for `{attributes: {class: value}}`.
 
-ignoreEvent `(`event `:`Event `) →`boolean Can be used to configure which kinds of events inside the widget
-should be ignored by the editor. The default is to ignore all
-events.
+`**[[string]](#view.Decoration^line^spec^string)**: any`
 
-coordsAt `(`dom `:`HTMLElement `,`pos `:`number `,`side `:`number `) →`Rect `|`null Override the way screen coordinates for positions at/in the
-widget are found.
+Other properties are allowed.
 
-`pos`will be the offset into the widget, and
+`static **[set](#view.Decoration^set)**(  [of](#view.Decoration^set^of): [Range](#state.Range)<[Decoration](#view.Decoration)> | readonly [Range](#state.Range)<[Decoration](#view.Decoration)>[],  [sort](#view.Decoration^set^sort)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = false  ) → [DecorationSet](#view.DecorationSet)`
 
-`side`the side of the position that is being queried—less than
-zero for before, greater than zero for after, and zero for
-directly at that position.
+Build a [`DecorationSet`](#view.DecorationSet) from the given decorated range or ranges. If the ranges aren't already sorted, pass `true` for `sort` to make the library sort them for you.
 
-destroy `(`dom `:`HTMLElement `)`This is called when the an instance of the widget is removed
-from the editor view.
+`static **[none](#view.Decoration^none)**: [DecorationSet](#view.DecorationSet)`
 
-class MatchDecorator Helper class used to make it easier to maintain decorations on
-visible code that matches a given regular expression. To be used
-in a
+The empty set of decorations.
 
-view plugin . Instances of this object
-represent a matching configuration.
+`type **[DecorationSet](#view.DecorationSet)** = [RangeSet](#state.RangeSet)<[Decoration](#view.Decoration)>`
 
-new MatchDecorator `(`config `:`Object `)`Create a decorator.
+A decoration set represents a collection of decorated ranges, organized for efficient access and mapping. See [`RangeSet`](#state.RangeSet) for its methods.
 
-config regexp `:`RegExp The regular expression to match against the content. Will only
-be matched inside lines (not across them). Should have its 'g'
-flag set.
+#### `abstract class` [WidgetType](#view.WidgetType)
 
-decoration `⁠?:`Decoration `|`fn ( match : RegExpExecArray , view : EditorView , pos : number ) → Decoration | null The decoration to apply to matches, either directly or as a
-function of the match.
+Widgets added to the content are described by subclasses of this class. Using a description object like that makes it possible to delay creating of the DOM structure for a widget until it is needed, and to avoid redrawing widgets even if the decorations that define them are recreated.
 
-decorate `⁠?:`fn `(`add : fn ( from : number , to : number , decoration : Decoration ), from : number , to : number , match : RegExpExecArray , view : EditorView `)`Customize the way decorations are added for matches. This
-function, when given, will be called for matches and should
-call
+`abstract **[toDOM](#view.WidgetType.toDOM)**([view](#view.WidgetType.toDOM^view): [EditorView](#view.EditorView)) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-`add`to create decorations for them. Note that the
-decorations should appear
+Build the DOM structure for this widget instance.
 
-in the given range, and the
-function should have no side effects beyond calling
+`**[eq](#view.WidgetType.eq)**([widget](#view.WidgetType.eq^widget): [WidgetType](#view.WidgetType)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`add`.
+Compare this instance to another instance of the same type. (TypeScript can't express this, but only instances of the same specific class will be passed to this method.) This is used to avoid redrawing widgets when they are replaced by a new decoration of the same type. The default implementation just returns `false`, which will cause new instances of the widget to always be redrawn.
 
-The
+`**[updateDOM](#view.WidgetType.updateDOM)**([dom](#view.WidgetType.updateDOM^dom): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement), [view](#view.WidgetType.updateDOM^view): [EditorView](#view.EditorView)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`decoration`option is ignored when
+Update a DOM element created by a widget of the same type (but different, non-`eq` content) to reflect this widget. May return true to indicate that it could update, false to indicate it couldn't (in which case the widget will be redrawn). The default implementation just returns false.
 
-`decorate`is
-provided.
+`**[estimatedHeight](#view.WidgetType.estimatedHeight)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-boundary `⁠?:`RegExp By default, changed lines are re-matched entirely. You can
-provide a boundary expression, which should match single
-character strings that can never occur in
+The estimated height this widget will have, to be used when estimating the height of content that hasn't been drawn. May return -1 to indicate you don't know. The default implementation returns -1.
 
-`regexp`, to reduce
-the amount of re-matching.
+`**[lineBreaks](#view.WidgetType.lineBreaks)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-maxLength `⁠?:`number Matching happens by line, by default, but when lines are
-folded or very long lines are only partially drawn, the
-decorator may avoid matching part of them for speed. This
-controls how much additional invisible content it should
-include in its matches. Defaults to 1000.
+For inline widgets that are displayed inline (as opposed to `inline-block`) and introduce line breaks (through `<br>` tags or textual newlines), this must indicate the amount of line breaks they introduce. Defaults to 0.
 
-createDeco `(`view `:`EditorView `) →`RangeSet `<`Decoration `>`Compute the full set of decorations for matches in the given
-view's viewport. You'll want to call this when initializing your
-plugin.
+`**[ignoreEvent](#view.WidgetType.ignoreEvent)**([event](#view.WidgetType.ignoreEvent^event): [Event](https://developer.mozilla.org/en-US/docs/DOM/event)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-updateDeco `(`update `:`ViewUpdate `,`deco `:`DecorationSet `) →`DecorationSet Update a set of decorations for a view update.
+Can be used to configure which kinds of events inside the widget should be ignored by the editor. The default is to ignore all events.
 
-`deco`must be
-the set of decorations produced by
+`**[coordsAt](#view.WidgetType.coordsAt)**([dom](#view.WidgetType.coordsAt^dom): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement), [pos](#view.WidgetType.coordsAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [side](#view.WidgetType.coordsAt^side): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Rect](#view.Rect) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-this `MatchDecorator`for
-the view state before the update.
+Override the way screen coordinates for positions at/in the widget are found. `pos` will be the offset into the widget, and `side` the side of the position that is being queried—less than zero for before, greater than zero for after, and zero for directly at that position.
+
+`**[destroy](#view.WidgetType.destroy)**([dom](#view.WidgetType.destroy^dom): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement))`
+
+This is called when the an instance of the widget is removed from the editor view.
+
+#### `class` [MatchDecorator](#view.MatchDecorator)
+
+Helper class used to make it easier to maintain decorations on visible code that matches a given regular expression. To be used in a [view plugin](#view.ViewPlugin). Instances of this object represent a matching configuration.
+
+`new **[MatchDecorator](#view.MatchDecorator.constructor)**([config](#view.MatchDecorator.constructor^config): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))`
+
+Create a decorator.
+
+`**[config](#view.MatchDecorator.constructor^config)**`
+
+`**[regexp](#view.MatchDecorator.constructor^config.regexp)**: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)`
+
+The regular expression to match against the content. Will only be matched inside lines (not across them). Should have its 'g' flag set.
+
+`**[decoration](#view.MatchDecorator.constructor^config.decoration)**⁠?: [Decoration](#view.Decoration) |  fn([match](#view.MatchDecorator.constructor^config.decoration^match): [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value), [view](#view.MatchDecorator.constructor^config.decoration^view): [EditorView](#view.EditorView), [pos](#view.MatchDecorator.constructor^config.decoration^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Decoration](#view.Decoration) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  `
+
+The decoration to apply to matches, either directly or as a function of the match.
+
+`**[decorate](#view.MatchDecorator.constructor^config.decorate)**⁠?: fn(  [add](#view.MatchDecorator.constructor^config.decorate^add): fn([from](#view.MatchDecorator.constructor^config.decorate^add^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#view.MatchDecorator.constructor^config.decorate^add^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [decoration](#view.MatchDecorator.constructor^config.decorate^add^decoration): [Decoration](#view.Decoration)),  [from](#view.MatchDecorator.constructor^config.decorate^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#view.MatchDecorator.constructor^config.decorate^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [match](#view.MatchDecorator.constructor^config.decorate^match): [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value),  [view](#view.MatchDecorator.constructor^config.decorate^view): [EditorView](#view.EditorView)  )`
+
+Customize the way decorations are added for matches. This function, when given, will be called for matches and should call `add` to create decorations for them. Note that the decorations should appear _in_ the given range, and the function should have no side effects beyond calling `add`.
+
+The `decoration` option is ignored when `decorate` is provided.
+
+`**[boundary](#view.MatchDecorator.constructor^config.boundary)**⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)`
+
+By default, changed lines are re-matched entirely. You can provide a boundary expression, which should match single character strings that can never occur in `regexp`, to reduce the amount of re-matching.
+
+`**[maxLength](#view.MatchDecorator.constructor^config.maxLength)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Matching happens by line, by default, but when lines are folded or very long lines are only partially drawn, the decorator may avoid matching part of them for speed. This controls how much additional invisible content it should include in its matches. Defaults to 1000.
+
+`**[createDeco](#view.MatchDecorator.createDeco)**([view](#view.MatchDecorator.createDeco^view): [EditorView](#view.EditorView)) → [RangeSet](#state.RangeSet)<[Decoration](#view.Decoration)>`
+
+Compute the full set of decorations for matches in the given view's viewport. You'll want to call this when initializing your plugin.
+
+`**[updateDeco](#view.MatchDecorator.updateDeco)**([update](#view.MatchDecorator.updateDeco^update): [ViewUpdate](#view.ViewUpdate), [deco](#view.MatchDecorator.updateDeco^deco): [DecorationSet](#view.DecorationSet)) → [DecorationSet](#view.DecorationSet)`
+
+Update a set of decorations for a view update. `deco` _must_ be the set of decorations produced by _this_ `MatchDecorator` for the view state before the update.
 
 ### Gutters
 
-Functionality for showing "gutters" (for line numbers or other
-purposes) on the side of the editor. See also the
+Functionality for showing "gutters" (for line numbers or other purposes) on the side of the editor. See also the [gutter example](../../examples/gutter/).
 
-gutter
-example .
+`**[lineNumbers](#view.lineNumbers)**([config](#view.lineNumbers^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-lineNumbers `(`config `⁠?:`Object = {} `) →`Extension Create a line number gutter extension.
+Create a line number gutter extension.
 
-config formatNumber `⁠?:`fn `(`lineNo `:`number `,`state `:`EditorState `) →`string How to display line numbers. Defaults to simply converting them
-to string.
+`**[config](#view.lineNumbers^config)**`
 
-domEventHandlers `⁠?:`Object `<`fn ( view : EditorView , line : BlockInfo , event : Event ) → boolean `>`Supply event handlers for DOM events on this gutter.
+`**[formatNumber](#view.lineNumbers^config.formatNumber)**⁠?: fn([lineNo](#view.lineNumbers^config.formatNumber^lineNo): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [state](#view.lineNumbers^config.formatNumber^state): [EditorState](#state.EditorState)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-highlightActiveLineGutter `() →`Extension Returns an extension that adds a
+How to display line numbers. Defaults to simply converting them to string.
 
-`cm-activeLineGutter`class to
-all gutter elements on the
+`**[domEventHandlers](#view.lineNumbers^config.domEventHandlers)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<  fn([view](#view.lineNumbers^config.domEventHandlers^view): [EditorView](#view.EditorView), [line](#view.lineNumbers^config.domEventHandlers^line): [BlockInfo](#view.BlockInfo), [event](#view.lineNumbers^config.domEventHandlers^event): [Event](https://developer.mozilla.org/en-US/docs/DOM/event)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  >`
 
-active
-line .
+Supply event handlers for DOM events on this gutter.
 
-gutter `(`config `:`Object `) →`Extension Define an editor gutter. The order in which the gutters appear is
-determined by their extension priority.
+`**[highlightActiveLineGutter](#view.highlightActiveLineGutter)**() → [Extension](#state.Extension)`
 
-config class `⁠?:`string An extra CSS class to be added to the wrapper (
+Returns an extension that adds a `cm-activeLineGutter` class to all gutter elements on the [active line](#view.highlightActiveLine).
 
-`cm-gutter`)
-element.
+`**[gutter](#view.gutter)**([config](#view.gutter^config): Object) → [Extension](#state.Extension)`
 
-renderEmptyElements `⁠?:`boolean Controls whether empty gutter elements should be rendered.
-Defaults to false.
+Define an editor gutter. The order in which the gutters appear is determined by their extension priority.
 
-markers `⁠?:`fn `(`view `:`EditorView `) →`RangeSet `<`GutterMarker `> |`readonly RangeSet < GutterMarker >[] Retrieve a set of markers to use in this gutter.
+`**[config](#view.gutter^config)**`
 
-lineMarker `⁠?:`fn `(`view : EditorView , line : BlockInfo , otherMarkers : readonly GutterMarker [] `) →`GutterMarker `|`null Can be used to optionally add a single marker to every line.
+`**[class](#view.gutter^config.class)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-widgetMarker `⁠?:`fn `(`view `:`EditorView `,`widget `:`WidgetType `,`block `:`BlockInfo `) →`GutterMarker `|`null Associate markers with block widgets in the document.
+An extra CSS class to be added to the wrapper (`cm-gutter`) element.
 
-lineMarkerChange `⁠?:`fn `(`update `:`ViewUpdate `) →`boolean If line or widget markers depend on additional state, and should
-be updated when that changes, pass a predicate here that checks
-whether a given view update might change the line markers.
+`**[renderEmptyElements](#view.gutter^config.renderEmptyElements)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-initialSpacer `⁠?:`fn `(`view `:`EditorView `) →`GutterMarker Add a hidden spacer element that gives the gutter its base
-width.
+Controls whether empty gutter elements should be rendered. Defaults to false.
 
-updateSpacer `⁠?:`fn `(`spacer `:`GutterMarker `,`update `:`ViewUpdate `) →`GutterMarker Update the spacer element when the view is updated.
+`**[markers](#view.gutter^config.markers)**⁠?: fn([view](#view.gutter^config.markers^view): [EditorView](#view.EditorView)) → [RangeSet](#state.RangeSet)<[GutterMarker](#view.GutterMarker)> |  readonly [RangeSet](#state.RangeSet)<[GutterMarker](#view.GutterMarker)>[]  `
 
-domEventHandlers `⁠?:`Object `<`fn ( view : EditorView , line : BlockInfo , event : Event ) → boolean `>`Supply event handlers for DOM events on this gutter.
+Retrieve a set of markers to use in this gutter.
 
-gutters `(`config `⁠?: {`fixed `⁠?:`boolean `}) →`Extension The gutter-drawing plugin is automatically enabled when you add a
-gutter, but you can use this function to explicitly configure it.
+`**[lineMarker](#view.gutter^config.lineMarker)**⁠?: fn(  [view](#view.gutter^config.lineMarker^view): [EditorView](#view.EditorView),  [line](#view.gutter^config.lineMarker^line): [BlockInfo](#view.BlockInfo),  [otherMarkers](#view.gutter^config.lineMarker^otherMarkers): readonly [GutterMarker](#view.GutterMarker)[]  ) → [GutterMarker](#view.GutterMarker) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-Unless
+Can be used to optionally add a single marker to every line.
 
-`fixed`is explicitly set to
+`**[widgetMarker](#view.gutter^config.widgetMarker)**⁠?: fn([view](#view.gutter^config.widgetMarker^view): [EditorView](#view.EditorView), [widget](#view.gutter^config.widgetMarker^widget): [WidgetType](#view.WidgetType), [block](#view.gutter^config.widgetMarker^block): [BlockInfo](#view.BlockInfo)) → [GutterMarker](#view.GutterMarker) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`false`, the gutters are
-fixed, meaning they don't scroll along with the content
-horizontally (except on Internet Explorer, which doesn't support
-CSS
+Associate markers with block widgets in the document.
 
-`position: sticky`).
+`**[lineMarkerChange](#view.gutter^config.lineMarkerChange)**⁠?: fn([update](#view.gutter^config.lineMarkerChange^update): [ViewUpdate](#view.ViewUpdate)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-abstract class GutterMarker extends RangeValue A gutter marker represents a bit of information attached to a line
-in a specific gutter. Your own custom markers have to extend this
-class.
+If line or widget markers depend on additional state, and should be updated when that changes, pass a predicate here that checks whether a given view update might change the line markers.
 
-eq `(`other `:`GutterMarker `) →`boolean Compare this marker to another marker of the same type.
+`**[initialSpacer](#view.gutter^config.initialSpacer)**⁠?: fn([view](#view.gutter^config.initialSpacer^view): [EditorView](#view.EditorView)) → [GutterMarker](#view.GutterMarker)`
 
-toDOM `⁠?:`fn `(`view `:`EditorView `) →`Node Render the DOM node for this marker, if any.
+Add a hidden spacer element that gives the gutter its base width.
 
-elementClass `:`string This property can be used to add CSS classes to the gutter
-element that contains this marker.
+`**[updateSpacer](#view.gutter^config.updateSpacer)**⁠?: fn([spacer](#view.gutter^config.updateSpacer^spacer): [GutterMarker](#view.GutterMarker), [update](#view.gutter^config.updateSpacer^update): [ViewUpdate](#view.ViewUpdate)) → [GutterMarker](#view.GutterMarker)`
 
-destroy `(`dom `:`Node `)`Called if the marker has a
+Update the spacer element when the view is updated.
 
-`toDOM`method and its representation
-was removed from a gutter.
+`**[domEventHandlers](#view.gutter^config.domEventHandlers)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<  fn([view](#view.gutter^config.domEventHandlers^view): [EditorView](#view.EditorView), [line](#view.gutter^config.domEventHandlers^line): [BlockInfo](#view.BlockInfo), [event](#view.gutter^config.domEventHandlers^event): [Event](https://developer.mozilla.org/en-US/docs/DOM/event)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  >`
 
-gutterLineClass `:`Facet `<`RangeSet `<`GutterMarker `>>`Facet used to add a class to all gutter elements for a given line.
-Markers given to this facet should
+Supply event handlers for DOM events on this gutter.
 
-only define an
+`**[gutters](#view.gutters)**([config](#view.gutters^config)⁠?: {fixed⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)}) → [Extension](#state.Extension)`
 
-`elementclass`, not a
+The gutter-drawing plugin is automatically enabled when you add a gutter, but you can use this function to explicitly configure it.
 
-`toDOM`(or the marker will appear
-in all gutters for the line).
+Unless `fixed` is explicitly set to `false`, the gutters are fixed, meaning they don't scroll along with the content horizontally (except on Internet Explorer, which doesn't support CSS [`position: sticky`](https://developer.mozilla.org/en-US/docs/Web/CSS/position#sticky)).
 
-gutterWidgetClass `:`Facet `<`fn ( view : EditorView , widget : WidgetType , block : BlockInfo ) → GutterMarker | null `>`Facet used to add a class to all gutter elements next to a widget.
-Should not provide widgets with a
+#### `abstract class` [GutterMarker](#view.GutterMarker) `extends [RangeValue](#state.RangeValue)`
 
-`toDOM`method.
+A gutter marker represents a bit of information attached to a line in a specific gutter. Your own custom markers have to extend this class.
 
-lineNumberMarkers `:`Facet `<`RangeSet `<`GutterMarker `>>`Facet used to provide markers to the line number gutter.
+`**[eq](#view.GutterMarker.eq)**([other](#view.GutterMarker.eq^other): [GutterMarker](#view.GutterMarker)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-lineNumberWidgetMarker `:`Facet `<`fn ( view : EditorView , widget : WidgetType , block : BlockInfo ) → GutterMarker | null `>`Facet used to create markers in the line number gutter next to widgets.
+Compare this marker to another marker of the same type.
+
+`**[toDOM](#view.GutterMarker.toDOM)**⁠?: fn([view](#view.GutterMarker.toDOM^view): [EditorView](#view.EditorView)) → [Node](https://developer.mozilla.org/en/docs/DOM/Node)`
+
+Render the DOM node for this marker, if any.
+
+`**[elementClass](#view.GutterMarker.elementClass)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+This property can be used to add CSS classes to the gutter element that contains this marker.
+
+`**[destroy](#view.GutterMarker.destroy)**([dom](#view.GutterMarker.destroy^dom): [Node](https://developer.mozilla.org/en/docs/DOM/Node))`
+
+Called if the marker has a `toDOM` method and its representation was removed from a gutter.
+
+`**[gutterLineClass](#view.gutterLineClass)**: [Facet](#state.Facet)<[RangeSet](#state.RangeSet)<[GutterMarker](#view.GutterMarker)>>`
+
+Facet used to add a class to all gutter elements for a given line. Markers given to this facet should _only_ define an [`elementclass`](#view.GutterMarker.elementClass), not a [`toDOM`](#view.GutterMarker.toDOM) (or the marker will appear in all gutters for the line).
+
+`**[gutterWidgetClass](#view.gutterWidgetClass)**: [Facet](#state.Facet)<  fn([view](#view.gutterWidgetClass^view): [EditorView](#view.EditorView), [widget](#view.gutterWidgetClass^widget): [WidgetType](#view.WidgetType), [block](#view.gutterWidgetClass^block): [BlockInfo](#view.BlockInfo)) → [GutterMarker](#view.GutterMarker) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
+
+Facet used to add a class to all gutter elements next to a widget. Should not provide widgets with a `toDOM` method.
+
+`**[lineNumberMarkers](#view.lineNumberMarkers)**: [Facet](#state.Facet)<[RangeSet](#state.RangeSet)<[GutterMarker](#view.GutterMarker)>>`
+
+Facet used to provide markers to the line number gutter.
+
+`**[lineNumberWidgetMarker](#view.lineNumberWidgetMarker)**: [Facet](#state.Facet)<  fn([view](#view.lineNumberWidgetMarker^view): [EditorView](#view.EditorView), [widget](#view.lineNumberWidgetMarker^widget): [WidgetType](#view.WidgetType), [block](#view.lineNumberWidgetMarker^block): [BlockInfo](#view.BlockInfo)) → [GutterMarker](#view.GutterMarker) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
+
+Facet used to create markers in the line number gutter next to widgets.
 
 ### Tooltips
 
-Tooltips are DOM elements overlaid on the editor near a given document
-position. This package helps manage and position such elements.
+Tooltips are DOM elements overlaid on the editor near a given document position. This package helps manage and position such elements.
 
-See also the
+See also the [tooltip example](../../examples/tooltip/).
 
-tooltip example .
+`**[showTooltip](#view.showTooltip)**: [Facet](#state.Facet)<[Tooltip](#view.Tooltip) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-showTooltip `:`Facet `<`Tooltip `|`null `>`Facet to which an extension can add a value to show a tooltip.
+Facet to which an extension can add a value to show a tooltip.
 
-interface Tooltip Describes a tooltip. Values of this type, when provided through
-the
+#### `interface` [Tooltip](#view.Tooltip)
 
-`showTooltip`facet, control the
-individual tooltips on the editor.
+Describes a tooltip. Values of this type, when provided through the [`showTooltip`](#view.showTooltip) facet, control the individual tooltips on the editor.
 
-pos `:`number The document position at which to show the tooltip.
+`**[pos](#view.Tooltip.pos)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-end `⁠?:`number The end of the range annotated by this tooltip, if different
-from
+The document position at which to show the tooltip.
 
-`pos`.
+`**[end](#view.Tooltip.end)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-create `(`view `:`EditorView `) →`TooltipView A constructor function that creates the tooltip's
+The end of the range annotated by this tooltip, if different from `pos`.
 
-DOM
-representation .
+`**[create](#view.Tooltip.create)**([view](#view.Tooltip.create^view): [EditorView](#view.EditorView)) → [TooltipView](#view.TooltipView)`
 
-above `⁠?:`boolean Whether the tooltip should be shown above or below the target
-position. Not guaranteed to be respected for hover tooltips
-since all hover tooltips for the same range are always
-positioned together. Defaults to false.
+A constructor function that creates the tooltip's [DOM representation](#view.TooltipView).
 
-strictSide `⁠?:`boolean Whether the
+`**[above](#view.Tooltip.above)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`above`option should be honored when there isn't
-enough space on that side to show the tooltip inside the
-viewport. Defaults to false.
+Whether the tooltip should be shown above or below the target position. Not guaranteed to be respected for hover tooltips since all hover tooltips for the same range are always positioned together. Defaults to false.
 
-arrow `⁠?:`boolean When set to true, show a triangle connecting the tooltip element
-to position
+`**[strictSide](#view.Tooltip.strictSide)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`pos`.
+Whether the `above` option should be honored when there isn't enough space on that side to show the tooltip inside the viewport. Defaults to false.
 
-clip `⁠?:`boolean By default, tooltips are hidden when their position is outside
-of the visible editor content. Set this to false to turn that
-off.
+`**[arrow](#view.Tooltip.arrow)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-interface TooltipView Describes the way a tooltip is displayed.
+When set to true, show a triangle connecting the tooltip element to position `pos`.
 
-dom `:`HTMLElement The DOM element to position over the editor.
+`**[clip](#view.Tooltip.clip)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-offset `⁠?: {`x `:`number `,`y `:`number `}`Adjust the position of the tooltip relative to its anchor
-position. A positive
+By default, tooltips are hidden when their position is outside of the visible editor content. Set this to false to turn that off.
 
-`x`value will move the tooltip
-horizontally along with the text direction (so right in
-left-to-right context, left in right-to-left). A positive
+#### `interface` [TooltipView](#view.TooltipView)
 
-`y`will move the tooltip up when it is above its anchor, and down
-otherwise.
+Describes the way a tooltip is displayed.
 
-getCoords `⁠?:`fn `(`pos `:`number `) →`Rect By default, a tooltip's screen position will be based on the
-text position of its
+`**[dom](#view.TooltipView.dom)**: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-`pos`property. This method can be provided
-to make the tooltip view itself responsible for finding its
-screen position.
+The DOM element to position over the editor.
 
-overlap `⁠?:`boolean By default, tooltips are moved when they overlap with other
-tooltips. Set this to
+`**[offset](#view.TooltipView.offset)**⁠?: {x: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), y: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-`true`to disable that behavior for this
-tooltip.
+Adjust the position of the tooltip relative to its anchor position. A positive `x` value will move the tooltip horizontally along with the text direction (so right in left-to-right context, left in right-to-left). A positive `y` will move the tooltip up when it is above its anchor, and down otherwise.
 
-mount `⁠?:`fn `(`view `:`EditorView `)`Called after the tooltip is added to the DOM for the first time.
+`**[getCoords](#view.TooltipView.getCoords)**⁠?: fn([pos](#view.TooltipView.getCoords^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [Rect](#view.Rect)`
 
-update `⁠?:`fn `(`update `:`ViewUpdate `)`Update the DOM element for a change in the view's state.
+By default, a tooltip's screen position will be based on the text position of its `pos` property. This method can be provided to make the tooltip view itself responsible for finding its screen position.
 
-destroy `⁠?:`fn `()`Called when the tooltip is removed from the editor or the editor
-is destroyed.
+`**[overlap](#view.TooltipView.overlap)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-positioned `⁠?:`fn `(`space `:`Rect `)`Called when the tooltip has been (re)positioned. The argument is
-the
+By default, tooltips are moved when they overlap with other tooltips. Set this to `true` to disable that behavior for this tooltip.
 
-space available to the
-tooltip.
+`**[mount](#view.TooltipView.mount)**⁠?: fn([view](#view.TooltipView.mount^view): [EditorView](#view.EditorView))`
 
-resize `⁠?:`boolean By default, the library will restrict the size of tooltips so
-that they don't stick out of the available space. Set this to
-false to disable that.
+Called after the tooltip is added to the DOM for the first time.
 
-tooltips `(`config `⁠?:`Object = {} `) →`Extension Creates an extension that configures tooltip behavior.
+`**[update](#view.TooltipView.update)**⁠?: fn([update](#view.TooltipView.update^update): [ViewUpdate](#view.ViewUpdate))`
 
-config position `⁠?:`"fixed" `|`"absolute" By default, tooltips use
+Update the DOM element for a change in the view's state.
 
-`"fixed"`positioning ,
-which has the advantage that tooltips don't get cut off by
-scrollable parent elements. However, CSS rules like
+`**[destroy](#view.TooltipView.destroy)**⁠?: fn()`
 
-`contain: layout`can break fixed positioning in child nodes, which can be
-worked about by using
+Called when the tooltip is removed from the editor or the editor is destroyed.
 
-`"absolute"`here.
+`**[positioned](#view.TooltipView.positioned)**⁠?: fn([space](#view.TooltipView.positioned^space): [Rect](#view.Rect))`
 
-On iOS, which at the time of writing still doesn't properly
-support fixed positioning, the library always uses absolute
-positioning.
+Called when the tooltip has been (re)positioned. The argument is the [space](#view.tooltips%5Econfig.tooltipSpace) available to the tooltip.
 
-If the tooltip parent element sits in a transformed element, the
-library also falls back to absolute positioning.
+`**[resize](#view.TooltipView.resize)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-parent `⁠?:`HTMLElement The element to put the tooltips into. By default, they are put
-in the editor (
+By default, the library will restrict the size of tooltips so that they don't stick out of the available space. Set this to false to disable that.
 
-`cm-editor`) element, and that is usually what
-you want. But in some layouts that can lead to positioning
-issues, and you need to use a different parent to work around
-those.
+`**[tooltips](#view.tooltips)**([config](#view.tooltips^config)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [Extension](#state.Extension)`
 
-tooltipSpace `⁠?:`fn `(`view `:`EditorView `) →`Rect By default, when figuring out whether there is room for a
-tooltip at a given position, the extension considers the entire
-space between 0,0 and
+Creates an extension that configures tooltip behavior.
 
-`documentElement.clientWidth`/
+`**[config](#view.tooltips^config)**`
 
-`clientHeight`to be available for
-showing tooltips. You can provide a function here that returns
-an alternative rectangle.
+`**[position](#view.tooltips^config.position)**⁠?: "fixed" | "absolute"`
 
-getTooltip `(`view `:`EditorView `,`tooltip `:`Tooltip `) →`TooltipView `|`null Get the active tooltip view for a given tooltip, if available.
+By default, tooltips use `"fixed"` [positioning](https://developer.mozilla.org/en-US/docs/Web/CSS/position), which has the advantage that tooltips don't get cut off by scrollable parent elements. However, CSS rules like `contain: layout` can break fixed positioning in child nodes, which can be worked about by using `"absolute"` here.
 
-hoverTooltip `(`source `:`HoverTooltipSource `,`options `⁠?:`Object = {} `) → {`extension `:`Extension `} &`{ active : StateField < readonly Tooltip []>} `|`readonly Extension [] & { active : StateField < readonly Tooltip []>} Set up a hover tooltip, which shows up when the pointer hovers
-over ranges of text. The callback is called when the mouse hovers
-over the document text. It should, if there is a tooltip
-associated with position
+On iOS, which at the time of writing still doesn't properly support fixed positioning, the library always uses absolute positioning.
 
-`pos`, return the tooltip description
-(either directly or in a promise). The
+If the tooltip parent element sits in a transformed element, the library also falls back to absolute positioning.
 
-`side`argument indicates
-on which side of the position the pointer is—it will be -1 if the
-pointer is before the position, 1 if after the position.
+`**[parent](#view.tooltips^config.parent)**⁠?: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-Note that all hover tooltips are hosted within a single tooltip
-container element. This allows multiple tooltips over the same
-range to be "merged" together without overlapping.
+The element to put the tooltips into. By default, they are put in the editor (`cm-editor`) element, and that is usually what you want. But in some layouts that can lead to positioning issues, and you need to use a different parent to work around those.
 
-The return value is a valid
+`**[tooltipSpace](#view.tooltips^config.tooltipSpace)**⁠?: fn([view](#view.tooltips^config.tooltipSpace^view): [EditorView](#view.EditorView)) → [Rect](#view.Rect)`
 
-editor extension but also provides an
+By default, when figuring out whether there is room for a tooltip at a given position, the extension considers the entire space between 0,0 and `documentElement.clientWidth`/`clientHeight` to be available for showing tooltips. You can provide a function here that returns an alternative rectangle.
 
-`active`property holding a state field that
-can be used to read the currently active tooltips produced by this
-extension.
+`**[getTooltip](#view.getTooltip)**([view](#view.getTooltip^view): [EditorView](#view.EditorView), [tooltip](#view.getTooltip^tooltip): [Tooltip](#view.Tooltip)) → [TooltipView](#view.TooltipView) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-options hideOn `⁠?:`fn `(`tr `:`Transaction `,`tooltip `:`Tooltip `) →`boolean Controls whether a transaction hides the tooltip. The default
-is to not hide.
+Get the active tooltip view for a given tooltip, if available.
 
-hideOnChange `⁠?:`boolean `|`"touch" When enabled (this defaults to false), close the tooltip
-whenever the document changes or the selection is set.
+`**[hoverTooltip](#view.hoverTooltip)**([source](#view.hoverTooltip^source): [HoverTooltipSource](#view.HoverTooltipSource), [options](#view.hoverTooltip^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → {extension: [Extension](#state.Extension)} &  {active: [StateField](#state.StateField)<readonly [Tooltip](#view.Tooltip)[]>}  |  readonly [Extension](#state.Extension)[] &  {active: [StateField](#state.StateField)<readonly [Tooltip](#view.Tooltip)[]>}    `
 
-hoverTime `⁠?:`number Hover time after which the tooltip should appear, in
-milliseconds. Defaults to 300ms.
+Set up a hover tooltip, which shows up when the pointer hovers over ranges of text. The callback is called when the mouse hovers over the document text. It should, if there is a tooltip associated with position `pos`, return the tooltip description (either directly or in a promise). The `side` argument indicates on which side of the position the pointer is—it will be -1 if the pointer is before the position, 1 if after the position.
 
-type HoverTooltipSource `=`fn `(`view `:`EditorView `,`pos `:`number `,`side `:`-1 `|`1 `) →`Tooltip `|`readonly Tooltip [] | Promise < Tooltip | readonly Tooltip [] | null > | null The type of function that can be used as a
+Note that all hover tooltips are hosted within a single tooltip container element. This allows multiple tooltips over the same range to be "merged" together without overlapping.
 
-hover tooltip
-source .
+The return value is a valid [editor extension](#state.Extension) but also provides an `active` property holding a state field that can be used to read the currently active tooltips produced by this extension.
 
-hasHoverTooltips `(`state `:`EditorState `) →`boolean Returns true if any hover tooltips are currently active.
+`**[options](#view.hoverTooltip^options)**`
 
-closeHoverTooltips `:`StateEffect `<`null `>`Transaction effect that closes all hover tooltips.
+`**[hideOn](#view.hoverTooltip^options.hideOn)**⁠?: fn([tr](#view.hoverTooltip^options.hideOn^tr): [Transaction](#state.Transaction), [tooltip](#view.hoverTooltip^options.hideOn^tooltip): [Tooltip](#view.Tooltip)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-repositionTooltips `(`view `:`EditorView `)`Tell the tooltip extension to recompute the position of the active
-tooltips. This can be useful when something happens (such as a
-re-positioning or CSS change affecting the editor) that could
-invalidate the existing tooltip positions.
+Controls whether a transaction hides the tooltip. The default is to not hide.
+
+`**[hideOnChange](#view.hoverTooltip^options.hideOnChange)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | "touch"`
+
+When enabled (this defaults to false), close the tooltip whenever the document changes or the selection is set.
+
+`**[hoverTime](#view.hoverTooltip^options.hoverTime)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Hover time after which the tooltip should appear, in milliseconds. Defaults to 300ms.
+
+`type **[HoverTooltipSource](#view.HoverTooltipSource)** = fn([view](#view.HoverTooltipSource^view): [EditorView](#view.EditorView), [pos](#view.HoverTooltipSource^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [side](#view.HoverTooltipSource^side): -1 | 1) → [Tooltip](#view.Tooltip) |  readonly [Tooltip](#view.Tooltip)[] |  [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<[Tooltip](#view.Tooltip) | readonly [Tooltip](#view.Tooltip)[] | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)> |  [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  `
+
+The type of function that can be used as a [hover tooltip source](#view.hoverTooltip%5Esource).
+
+`**[hasHoverTooltips](#view.hasHoverTooltips)**([state](#view.hasHoverTooltips^state): [EditorState](#state.EditorState)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Returns true if any hover tooltips are currently active.
+
+`**[closeHoverTooltips](#view.closeHoverTooltips)**: [StateEffect](#state.StateEffect)<[null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
+
+Transaction effect that closes all hover tooltips.
+
+`**[repositionTooltips](#view.repositionTooltips)**([view](#view.repositionTooltips^view): [EditorView](#view.EditorView))`
+
+Tell the tooltip extension to recompute the position of the active tooltips. This can be useful when something happens (such as a re-positioning or CSS change affecting the editor) that could invalidate the existing tooltip positions.
 
 ### Panels
 
-Panels are UI elements positioned above or below the editor (things
-like a search dialog). They will take space from the editor when it
-has a fixed height, and will stay in view even when the editor is
-partially scrolled out of view.
+Panels are UI elements positioned above or below the editor (things like a search dialog). They will take space from the editor when it has a fixed height, and will stay in view even when the editor is partially scrolled out of view.
 
-See also the
+See also the [panel example](../../examples/panel/).
 
-panel example .
+`**[showPanel](#view.showPanel)**: [Facet](#state.Facet)<[PanelConstructor](#view.PanelConstructor) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-showPanel `:`Facet `<`PanelConstructor `|`null `>`Opening a panel is done by providing a constructor function for
-the panel through this facet. (The panel is closed again when its
-constructor is no longer provided.) Values of
+Opening a panel is done by providing a constructor function for the panel through this facet. (The panel is closed again when its constructor is no longer provided.) Values of `null` are ignored.
 
-`null`are ignored.
+`type **[PanelConstructor](#view.PanelConstructor)** = fn([view](#view.PanelConstructor^view): [EditorView](#view.EditorView)) → [Panel](#view.Panel)`
 
-type PanelConstructor `=`fn `(`view `:`EditorView `) →`Panel A function that initializes a panel. Used in
+A function that initializes a panel. Used in [`showPanel`](#view.showPanel).
 
-`showPanel`.
+#### `interface` [Panel](#view.Panel)
 
-interface Panel Object that describes an active panel.
+Object that describes an active panel.
 
-dom `:`HTMLElement The element representing this panel. The library will add the
+`**[dom](#view.Panel.dom)**: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-`"cm-panel"`DOM class to this.
+The element representing this panel. The library will add the `"cm-panel"` DOM class to this.
 
-mount `⁠?:`fn `()`Optionally called after the panel has been added to the editor.
+`**[mount](#view.Panel.mount)**⁠?: fn()`
 
-update `⁠?:`fn `(`update `:`ViewUpdate `)`Update the DOM for a given view update.
+Optionally called after the panel has been added to the editor.
 
-destroy `⁠?:`fn `()`Called when the panel is removed from the editor or the editor
-is destroyed.
+`**[update](#view.Panel.update)**⁠?: fn([update](#view.Panel.update^update): [ViewUpdate](#view.ViewUpdate))`
 
-top `⁠?:`boolean Whether the panel should be at the top or bottom of the editor.
-Defaults to false.
+Update the DOM for a given view update.
 
-getPanel `(`view `:`EditorView `,`panel `:`PanelConstructor `) →`Panel `|`null Get the active panel created by the given constructor, if any.
-This can be useful when you need access to your panels' DOM
-structure.
+`**[destroy](#view.Panel.destroy)**⁠?: fn()`
 
-panels `(`config `⁠?:`Object `) →`Extension Configures the panel-managing extension.
+Called when the panel is removed from the editor or the editor is destroyed.
 
-config topContainer `⁠?:`HTMLElement By default, panels will be placed inside the editor's DOM
-structure. You can use this option to override where panels with
+`**[top](#view.Panel.top)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`top: true`are placed.
+Whether the panel should be at the top or bottom of the editor. Defaults to false.
 
-bottomContainer `⁠?:`HTMLElement Override where panels with
+`**[getPanel](#view.getPanel)**([view](#view.getPanel^view): [EditorView](#view.EditorView), [panel](#view.getPanel^panel): [PanelConstructor](#view.PanelConstructor)) → [Panel](#view.Panel) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`top: false`are placed.
+Get the active panel created by the given constructor, if any. This can be useful when you need access to your panels' DOM structure.
+
+`**[panels](#view.panels)**([config](#view.panels^config)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [Extension](#state.Extension)`
+
+Configures the panel-managing extension.
+
+`**[config](#view.panels^config)**`
+
+`**[topContainer](#view.panels^config.topContainer)**⁠?: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
+
+By default, panels will be placed inside the editor's DOM structure. You can use this option to override where panels with `top: true` are placed.
+
+`**[bottomContainer](#view.panels^config.bottomContainer)**⁠?: [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
+
+Override where panels with `top: false` are placed.
 
 ### Layers
 
-Layers are sets of DOM elements drawn over or below the document text.
-They can be useful for displaying user interface elements that don't
-take up space and shouldn't influence line wrapping, such as
-additional cursors.
+Layers are sets of DOM elements drawn over or below the document text. They can be useful for displaying user interface elements that don't take up space and shouldn't influence line wrapping, such as additional cursors.
 
-Note that, being outside of the regular DOM order, such elements are
-invisible to screen readers. Make sure to also
+Note that, being outside of the regular DOM order, such elements are invisible to screen readers. Make sure to also [provide](#view.EditorView%5Eannounce) any important information they convey in an accessible way.
 
-provide any important information they
-convey in an accessible way.
+`**[layer](#view.layer)**([config](#view.layer^config): Object) → [Extension](#state.Extension)`
 
-layer `(`config `:`Object `) →`Extension Define a layer.
+Define a layer.
 
-config above `:`boolean Determines whether this layer is shown above or below the text.
+`**[config](#view.layer^config)**`
 
-class `⁠?:`string When given, this class is added to the DOM element that will
-wrap the markers.
+`**[above](#view.layer^config.above)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-update `(`update `:`ViewUpdate `,`layer `:`HTMLElement `) →`boolean Called on every view update. Returning true triggers a marker
-update (a call to
+Determines whether this layer is shown above or below the text.
 
-`markers`and drawing of those markers).
+`**[class](#view.layer^config.class)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-updateOnDocViewUpdate `⁠?:`boolean Whether to update this layer every time the document view
-changes. Defaults to true.
+When given, this class is added to the DOM element that will wrap the markers.
 
-markers `(`view `:`EditorView `) →`readonly LayerMarker `[]`Build a set of markers for this layer, and measure their
-dimensions.
+`**[update](#view.layer^config.update)**([update](#view.layer^config.update^update): [ViewUpdate](#view.ViewUpdate), [layer](#view.layer^config.update^layer): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-mount `⁠?:`fn `(`layer `:`HTMLElement `,`view `:`EditorView `)`If given, this is called when the layer is created.
+Called on every view update. Returning true triggers a marker update (a call to `markers` and drawing of those markers).
 
-destroy `⁠?:`fn `(`layer `:`HTMLElement `,`view `:`EditorView `)`If given, called when the layer is removed from the editor or
-the entire editor is destroyed.
+`**[updateOnDocViewUpdate](#view.layer^config.updateOnDocViewUpdate)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-interface LayerMarker Markers shown in a
+Whether to update this layer every time the document view changes. Defaults to true.
 
-layer must conform to this
-interface. They are created in a measuring phase, and have to
-contain all their positioning information, so that they can be
-drawn without further DOM layout reading.
+`**[markers](#view.layer^config.markers)**([view](#view.layer^config.markers^view): [EditorView](#view.EditorView)) → readonly [LayerMarker](#view.LayerMarker)[]`
 
-Markers are automatically absolutely positioned. Their parent
-element has the same top-left corner as the document, so they
-should be positioned relative to the document.
+Build a set of markers for this layer, and measure their dimensions.
 
-eq `(`other `:`LayerMarker `) →`boolean Compare this marker to a marker of the same type. Used to avoid
-unnecessary redraws.
+`**[mount](#view.layer^config.mount)**⁠?: fn([layer](#view.layer^config.mount^layer): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement), [view](#view.layer^config.mount^view): [EditorView](#view.EditorView))`
 
-draw `() →`HTMLElement Draw the marker to the DOM.
+If given, this is called when the layer is created.
 
-update `⁠?:`fn `(`dom `:`HTMLElement `,`oldMarker `:`LayerMarker `) →`boolean Update an existing marker of this type to this marker.
+`**[destroy](#view.layer^config.destroy)**⁠?: fn([layer](#view.layer^config.destroy^layer): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement), [view](#view.layer^config.destroy^view): [EditorView](#view.EditorView))`
 
-class RectangleMarker implements LayerMarker Implementation of
+If given, called when the layer is removed from the editor or the entire editor is destroyed.
 
-`LayerMarker`that creates
-a rectangle at a given set of coordinates.
+#### `interface` [LayerMarker](#view.LayerMarker)
 
-new RectangleMarker `(`className : string , left : number , top : number , width : number | null , height : number `)`Create a marker with the given class and dimensions. If
+Markers shown in a [layer](#view.layer) must conform to this interface. They are created in a measuring phase, and have to contain all their positioning information, so that they can be drawn without further DOM layout reading.
 
-`width`is null, the DOM element will get no width style.
+Markers are automatically absolutely positioned. Their parent element has the same top-left corner as the document, so they should be positioned relative to the document.
 
-left `:`number The left position of the marker (in pixels, document-relative).
+`**[eq](#view.LayerMarker.eq)**([other](#view.LayerMarker.eq^other): [LayerMarker](#view.LayerMarker)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-top `:`number The top position of the marker.
+Compare this marker to a marker of the same type. Used to avoid unnecessary redraws.
 
-width `:`number `|`null The width of the marker, or null if it shouldn't get a width assigned.
+`**[draw](#view.LayerMarker.draw)**() → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-height `:`number The height of the marker.
+Draw the marker to the DOM.
 
-static forRange `(`view : EditorView , className : string , range : SelectionRange `) →`readonly RectangleMarker `[]`Create a set of rectangles for the given selection range,
-assigning them theclass
+`**[update](#view.LayerMarker.update)**⁠?: fn([dom](#view.LayerMarker.update^dom): [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement), [oldMarker](#view.LayerMarker.update^oldMarker): [LayerMarker](#view.LayerMarker)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`className`. Will create a single
-rectangle for empty ranges, and a set of selection-style
-rectangles covering the range's content (in a bidi-aware
-way) for non-empty ones.
+Update an existing marker of this type to this marker.
+
+#### `class` [RectangleMarker](#view.RectangleMarker) `implements [LayerMarker](#view.LayerMarker)`
+
+Implementation of [`LayerMarker`](#view.LayerMarker) that creates a rectangle at a given set of coordinates.
+
+`new **[RectangleMarker](#view.RectangleMarker.constructor)**(  [className](#view.RectangleMarker.constructor^className): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [left](#view.RectangleMarker.constructor^left): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [top](#view.RectangleMarker.constructor^top): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [width](#view.RectangleMarker.constructor^width): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null),  [height](#view.RectangleMarker.constructor^height): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )`
+
+Create a marker with the given class and dimensions. If `width` is null, the DOM element will get no width style.
+
+`**[left](#view.RectangleMarker.left)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The left position of the marker (in pixels, document-relative).
+
+`**[top](#view.RectangleMarker.top)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The top position of the marker.
+
+`**[width](#view.RectangleMarker.width)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
+
+The width of the marker, or null if it shouldn't get a width assigned.
+
+`**[height](#view.RectangleMarker.height)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The height of the marker.
+
+`static **[forRange](#view.RectangleMarker^forRange)**(  [view](#view.RectangleMarker^forRange^view): [EditorView](#view.EditorView),  [className](#view.RectangleMarker^forRange^className): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [range](#view.RectangleMarker^forRange^range): [SelectionRange](#state.SelectionRange)  ) → readonly [RectangleMarker](#view.RectangleMarker)[]`
+
+Create a set of rectangles for the given selection range, assigning them theclass`className`. Will create a single rectangle for empty ranges, and a set of selection-style rectangles covering the range's content (in a bidi-aware way) for non-empty ones.
 
 ### Rectangular Selection
 
-rectangularSelection `(`options `⁠?:`Object `) →`Extension Create an extension that enables rectangular selections. By
-default, it will react to left mouse drag with the Alt key held
-down. When such a selection occurs, the text within the rectangle
-that was dragged over will be selected, as one selection
+`**[rectangularSelection](#view.rectangularSelection)**([options](#view.rectangularSelection^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [Extension](#state.Extension)`
 
-range per line.
+Create an extension that enables rectangular selections. By default, it will react to left mouse drag with the Alt key held down. When such a selection occurs, the text within the rectangle that was dragged over will be selected, as one selection [range](#state.SelectionRange) per line.
 
-options eventFilter `⁠?:`fn `(`event `:`MouseEvent `) →`boolean A custom predicate function, which takes a
+`**[options](#view.rectangularSelection^options)**`
 
-`mousedown`event and
-returns true if it should be used for rectangular selection.
+`**[eventFilter](#view.rectangularSelection^options.eventFilter)**⁠?: fn([event](#view.rectangularSelection^options.eventFilter^event): [MouseEvent](https://developer.mozilla.org/en/docs/DOM/MouseEvent)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-crosshairCursor `(`options ⁠?: { key ⁠?: "Alt" | "Control" | "Shift" | "Meta" } = {} `) →`Extension Returns an extension that turns the pointer cursor into a
-crosshair when a given modifier key, defaulting to Alt, is held
-down. Can serve as a visual hint that rectangular selection is
-going to happen when paired with
+A custom predicate function, which takes a `mousedown` event and returns true if it should be used for rectangular selection.
 
-`rectangularSelection`.
+`**[crosshairCursor](#view.crosshairCursor)**(  [options](#view.crosshairCursor^options)⁠?: {key⁠?: "Alt" | "Control" | "Shift" | "Meta"} = {}  ) → [Extension](#state.Extension)`
 
-@codemirror/ language languageDataProp `:`NodeProp `<`Facet `<`Object `<`any `>>>`Node prop stored in a parser's top syntax node to provide the
-facet that stores language-specific data for that language.
+Returns an extension that turns the pointer cursor into a crosshair when a given modifier key, defaulting to Alt, is held down. Can serve as a visual hint that rectangular selection is going to happen when paired with [`rectangularSelection`](#view.rectangularSelection).
 
-class Language A language object manages parsing and per-language
+## [@codemirror/language](#language)
 
-metadata . Parse data is
-managed as a
+`**[languageDataProp](#language.languageDataProp)**: [NodeProp](https://lezer.codemirror.net/docs/ref/#common.NodeProp)<[Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>>>`
 
-Lezer tree. The class
-can be used directly, via the
+Node prop stored in a parser's top syntax node to provide the facet that stores language-specific data for that language.
 
-`LRLanguage`subclass for
+#### `class` [Language](#language.Language)
 
-Lezer LR parsers, or
-via the
+A language object manages parsing and per-language [metadata](#state.EditorState.languageDataAt). Parse data is managed as a [Lezer](https://lezer.codemirror.net) tree. The class can be used directly, via the [`LRLanguage`](#language.LRLanguage) subclass for [Lezer](https://lezer.codemirror.net/) LR parsers, or via the [`StreamLanguage`](#language.StreamLanguage) subclass for stream parsers.
 
-`StreamLanguage`subclass
-for stream parsers.
+`new **[Language](#language.Language.constructor)**(  [data](#language.Language.constructor^data): [Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>>,  [parser](#language.Language.constructor^parser): [Parser](https://lezer.codemirror.net/docs/ref/#common.Parser),  [extraExtensions](#language.Language.constructor^extraExtensions)⁠?: [Extension](#state.Extension)[] = [],  [name](#language.Language.constructor^name)⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) = ""  )`
 
-new Language `(`data : Facet < Object < any >>, parser : Parser , extraExtensions ⁠?: Extension [] = [] , name ⁠?: string = "" `)`Construct a language object. If you need to invoke this
-directly, first define a data facet with
+Construct a language object. If you need to invoke this directly, first define a data facet with [`defineLanguageFacet`](#language.defineLanguageFacet), and then configure your parser to [attach](#language.languageDataProp) it to the language's outer syntax node.
 
-`defineLanguageFacet`, and then
-configure your parser to
+`**[extension](#language.Language.extension)**: [Extension](#state.Extension)`
 
-attach it
-to the language's outer syntax node.
+The extension value to install this as the document language.
 
-extension `:`Extension The extension value to install this as the document language.
+`**[parser](#language.Language.parser)**: [Parser](https://lezer.codemirror.net/docs/ref/#common.Parser)`
 
-parser `:`Parser The parser object. Can be useful when using this as a
+The parser object. Can be useful when using this as a [nested parser](https://lezer.codemirror.net/docs/ref#common.Parser).
 
-nested
-parser .
+`**[data](#language.Language.data)**: [Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>>`
 
-data `:`Facet `<`Object `<`any `>>`The
+The [language data](#state.EditorState.languageDataAt) facet used for this language.
 
-language data facet
-used for this language.
+`**[name](#language.Language.name)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-name `:`string A language name.
+A language name.
 
-isActiveAt `(`state : EditorState , pos : number , side ⁠?: -1 | 0 | 1 = -1 `) →`boolean Query whether this language is active at the given position.
+`**[isActiveAt](#language.Language.isActiveAt)**(  [state](#language.Language.isActiveAt^state): [EditorState](#state.EditorState),  [pos](#language.Language.isActiveAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [side](#language.Language.isActiveAt^side)⁠?: -1 | 0 | 1 = -1  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-findRegions `(`state `:`EditorState `) → {`from `:`number `,`to `:`number `}[]`Find the document regions that were parsed using this language.
-The returned regions will
+Query whether this language is active at the given position.
 
-include any nested languages rooted
-in this language, when those exist.
+`**[findRegions](#language.Language.findRegions)**([state](#language.Language.findRegions^state): [EditorState](#state.EditorState)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}[]`
 
-allowsNesting `:`boolean Indicates whether this language allows nested languages. The
-default implementation returns true.
+Find the document regions that were parsed using this language. The returned regions will _include_ any nested languages rooted in this language, when those exist.
 
-defineLanguageFacet `(`baseData `⁠?:`Object `<`any `>) →`Facet `<`Object `<`any `>>`Helper function to define a facet (to be added to the top syntax
-node(s) for a language via
+`**[allowsNesting](#language.Language.allowsNesting)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`languageDataProp`), that will be
-used to associate language data with the language. You
-probably only need this when subclassing
+Indicates whether this language allows nested languages. The default implementation returns true.
 
-`Language`.
+`**[defineLanguageFacet](#language.defineLanguageFacet)**([baseData](#language.defineLanguageFacet^baseData)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>) → [Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>>`
 
-interface Sublanguage Some languages need to return different
+Helper function to define a facet (to be added to the top syntax node(s) for a language via [`languageDataProp`](#language.languageDataProp)), that will be used to associate language data with the language. You probably only need this when subclassing [`Language`](#language.Language).
 
-language
-data for some parts of their
-tree. Sublanguages, registered by adding a
+#### `interface` [Sublanguage](#language.Sublanguage)
 
-node
-prop to the language's top syntax
-node, provide a mechanism to do this.
+Some languages need to return different [language data](#state.EditorState.languageDataAt) for some parts of their tree. Sublanguages, registered by adding a [node prop](#language.sublanguageProp) to the language's top syntax node, provide a mechanism to do this.
 
-(Note that when using nested parsing, where nested syntax is
-parsed by a different parser and has its own top node type, you
-don't need a sublanguage.)
+(Note that when using nested parsing, where nested syntax is parsed by a different parser and has its own top node type, you don't need a sublanguage.)
 
-type `⁠?:`"replace" `|`"extend" Determines whether the data provided by this sublanguage should
-completely replace the regular data or be added to it (with
-higher-precedence). The default is
+`**[type](#language.Sublanguage.type)**⁠?: "replace" | "extend"`
 
-`"extend"`.
+Determines whether the data provided by this sublanguage should completely replace the regular data or be added to it (with higher-precedence). The default is `"extend"`.
 
-test `(`node `:`SyntaxNode `,`state `:`EditorState `) →`boolean A predicate that returns whether the node at the queried
-position is part of the sublanguage.
+`**[test](#language.Sublanguage.test)**([node](#language.Sublanguage.test^node): [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode), [state](#language.Sublanguage.test^state): [EditorState](#state.EditorState)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-facet `:`Facet `<`Object `<`any `>>`The language data facet that holds the sublanguage's data.
-You'll want to use
+A predicate that returns whether the node at the queried position is part of the sublanguage.
 
-`defineLanguageFacet`to create
-this.
+`**[facet](#language.Sublanguage.facet)**: [Facet](#state.Facet)<[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>>`
 
-sublanguageProp `:`NodeProp `<`Sublanguage `[]>`Syntax node prop used to register sublanguages. Should be added to
-the top level node type for the language.
+The language data facet that holds the sublanguage's data. You'll want to use [`defineLanguageFacet`](#language.defineLanguageFacet) to create this.
 
-language `:`Facet `<`Language `,`Language `|`null `>`The facet used to associate a language with an editor state. Used
-by
+`**[sublanguageProp](#language.sublanguageProp)**: [NodeProp](https://lezer.codemirror.net/docs/ref/#common.NodeProp)<[Sublanguage](#language.Sublanguage)[]>`
 
-`Language`object's
+Syntax node prop used to register sublanguages. Should be added to the top level node type for the language.
 
-`extension`property (so you don't need to
-manually wrap your languages in this). Can be used to access the
-current language on a state.
+`**[language](#language.language)**: [Facet](#state.Facet)<[Language](#language.Language), [Language](#language.Language) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-class LRLanguage extends Language A subclass of
+The facet used to associate a language with an editor state. Used by `Language` object's `extension` property (so you don't need to manually wrap your languages in this). Can be used to access the current language on a state.
 
-`Language`for use with Lezer
+#### `class` [LRLanguage](#language.LRLanguage) `extends [Language](#language.Language)`
 
-LR parsers parsers.
+A subclass of [`Language`](#language.Language) for use with Lezer [LR parsers](https://lezer.codemirror.net/docs/ref#lr.LRParser) parsers.
 
-configure `(`options `:`ParserConfig `,`name `⁠?:`string `) →`LRLanguage Create a new instance of this language with a reconfigured
-version of its parser and optionally a new name.
+`**[configure](#language.LRLanguage.configure)**([options](#language.LRLanguage.configure^options): [ParserConfig](https://lezer.codemirror.net/docs/ref/#lr.ParserConfig), [name](#language.LRLanguage.configure^name)⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [LRLanguage](#language.LRLanguage)`
 
-static define `(`spec `:`Object `) →`LRLanguage Define a language from a parser.
+Create a new instance of this language with a reconfigured version of its parser and optionally a new name.
 
-spec name `⁠?:`string The
+`static **[define](#language.LRLanguage^define)**([spec](#language.LRLanguage^define^spec): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [LRLanguage](#language.LRLanguage)`
 
-name of the language.
+Define a language from a parser.
 
-parser `:`LRParser The parser to use. Should already have added editor-relevant
-node props (and optionally things like dialect and top rule)
-configured.
+`**[spec](#language.LRLanguage^define^spec)**`
 
-languageData `⁠?:`Object `<`any `>`Language data to register for this language.
+`**[name](#language.LRLanguage^define^spec.name)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-class ParseContext A parse context provided to parsers working on the editor content.
+The [name](#Language.name) of the language.
 
-state `:`EditorState The current editor state.
+`**[parser](#language.LRLanguage^define^spec.parser)**: [LRParser](https://lezer.codemirror.net/docs/ref/#lr.LRParser)`
 
-fragments `:`readonly TreeFragment `[]`Tree fragments that can be reused by incremental re-parses.
+The parser to use. Should already have added editor-relevant node props (and optionally things like dialect and top rule) configured.
 
-viewport `: {`from `:`number `,`to `:`number `}`The current editor viewport (or some overapproximation
-thereof). Intended to be used for opportunistically avoiding
-work (in which case
+`**[languageData](#language.LRLanguage^define^spec.languageData)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>`
 
-`skipUntilInView`should be called to make sure the parser is restarted when the
-skipped region becomes visible).
+[Language data](#state.EditorState.languageDataAt) to register for this language.
 
-skipUntilInView `(`from `:`number `,`to `:`number `)`Notify the parse scheduler that the given region was skipped
-because it wasn't in view, and the parse should be restarted
-when it comes into view.
+#### `class` [ParseContext](#language.ParseContext)
 
-static getSkippingParser `(`until `⁠?:`Promise `<`unknown `>) →`Parser Returns a parser intended to be used as placeholder when
-asynchronously loading a nested parser. It'll skip its input and
-mark it as not-really-parsed, so that the next update will parse
-it again.
+A parse context provided to parsers working on the editor content.
 
-When
+`**[state](#language.ParseContext.state)**: [EditorState](#state.EditorState)`
 
-`until`is given, a reparse will be scheduled when that
-promise resolves.
+The current editor state.
 
-static get `() →`ParseContext `|`null Get the context for the current parse, or
+`**[fragments](#language.ParseContext.fragments)**: readonly [TreeFragment](https://lezer.codemirror.net/docs/ref/#common.TreeFragment)[]`
 
-`null`if no editor
-parse is in progress.
+Tree fragments that can be reused by incremental re-parses.
 
-syntaxTree `(`state `:`EditorState `) →`Tree Get the syntax tree for a state, which is the current (possibly
-incomplete) parse tree of the active
+`**[viewport](#language.ParseContext.viewport)**: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-language , or the empty tree if there is no
-language available.
+The current editor viewport (or some overapproximation thereof). Intended to be used for opportunistically avoiding work (in which case [`skipUntilInView`](#language.ParseContext.skipUntilInView) should be called to make sure the parser is restarted when the skipped region becomes visible).
 
-ensureSyntaxTree `(`state `:`EditorState `,`upto `:`number `,`timeout `⁠?:`number = 50 `) →`Tree `|`null Try to get a parse tree that spans at least up to
+`**[skipUntilInView](#language.ParseContext.skipUntilInView)**([from](#language.ParseContext.skipUntilInView^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#language.ParseContext.skipUntilInView^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
 
-`upto`. The
-method will do at most
+Notify the parse scheduler that the given region was skipped because it wasn't in view, and the parse should be restarted when it comes into view.
 
-`timeout`milliseconds of work to parse
-up to that point if the tree isn't already available.
+`static **[getSkippingParser](#language.ParseContext^getSkippingParser)**([until](#language.ParseContext^getSkippingParser^until)⁠?: [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<unknown>) → [Parser](https://lezer.codemirror.net/docs/ref/#common.Parser)`
 
-syntaxTreeAvailable `(`state `:`EditorState `,`upto `⁠?:`number = state.doc.length `) →`boolean Queries whether there is a full syntax tree available up to the
-given document position. If there isn't, the background parse
-process
+Returns a parser intended to be used as placeholder when asynchronously loading a nested parser. It'll skip its input and mark it as not-really-parsed, so that the next update will parse it again.
 
-might still be working and update the tree further, but
-there is no guarantee of that—the parser will
+When `until` is given, a reparse will be scheduled when that promise resolves.
 
-stop
-working when it has spent a
-certain amount of time or has moved beyond the visible viewport.
-Always returns false if no language has been enabled.
+`static **[get](#language.ParseContext^get)**() → [ParseContext](#language.ParseContext) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-forceParsing `(`view : EditorView , upto ⁠?: number = view.viewport.to , timeout ⁠?: number = 100 `) →`boolean Move parsing forward, and update the editor state afterwards to
-reflect the new tree. Will work for at most
+Get the context for the current parse, or `null` if no editor parse is in progress.
 
-`timeout`milliseconds. Returns true if the parser managed get to the given
-position in that time.
+`**[syntaxTree](#language.syntaxTree)**([state](#language.syntaxTree^state): [EditorState](#state.EditorState)) → [Tree](https://lezer.codemirror.net/docs/ref/#common.Tree)`
 
-syntaxParserRunning `(`view `:`EditorView `) →`boolean Tells you whether the language parser is planning to do more
-parsing work (in a
+Get the syntax tree for a state, which is the current (possibly incomplete) parse tree of the active [language](#language.Language), or the empty tree if there is no language available.
 
-`requestIdleCallback`pseudo-thread) or has
-stopped running, either because it parsed the entire document,
-because it spent too much time and was cut off, or because there
-is no language parser enabled.
+`**[ensureSyntaxTree](#language.ensureSyntaxTree)**([state](#language.ensureSyntaxTree^state): [EditorState](#state.EditorState), [upto](#language.ensureSyntaxTree^upto): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [timeout](#language.ensureSyntaxTree^timeout)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 50) → [Tree](https://lezer.codemirror.net/docs/ref/#common.Tree) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-class LanguageSupport This class bundles a
+Try to get a parse tree that spans at least up to `upto`. The method will do at most `timeout` milliseconds of work to parse up to that point if the tree isn't already available.
 
-language with an
-optional set of supporting extensions. Language packages are
-encouraged to export a function that optionally takes a
-configuration object and returns a
+`**[syntaxTreeAvailable](#language.syntaxTreeAvailable)**([state](#language.syntaxTreeAvailable^state): [EditorState](#state.EditorState), [upto](#language.syntaxTreeAvailable^upto)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = state.doc.length) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`LanguageSupport`instance, as
-the main way for client code to use the package.
+Queries whether there is a full syntax tree available up to the given document position. If there isn't, the background parse process _might_ still be working and update the tree further, but there is no guarantee of that—the parser will [stop working](#language.syntaxParserRunning) when it has spent a certain amount of time or has moved beyond the visible viewport. Always returns false if no language has been enabled.
 
-new LanguageSupport `(`language `:`Language `,`support `⁠?:`Extension = [] `)`Create a language support object.
+`**[forceParsing](#language.forceParsing)**(  [view](#language.forceParsing^view): [EditorView](#view.EditorView),  [upto](#language.forceParsing^upto)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = view.viewport.to,  [timeout](#language.forceParsing^timeout)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 100  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-extension `:`Extension An extension including both the language and its support
-extensions. (Allowing the object to be used as an extension
-value itself.)
+Move parsing forward, and update the editor state afterwards to reflect the new tree. Will work for at most `timeout` milliseconds. Returns true if the parser managed get to the given position in that time.
 
-language `:`Language The language object.
+`**[syntaxParserRunning](#language.syntaxParserRunning)**([view](#language.syntaxParserRunning^view): [EditorView](#view.EditorView)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-support `:`Extension An optional set of supporting extensions. When nesting a
-language in another language, the outer language is encouraged
-to include the supporting extensions for its inner languages
-in its own set of support extensions.
+Tells you whether the language parser is planning to do more parsing work (in a `requestIdleCallback` pseudo-thread) or has stopped running, either because it parsed the entire document, because it spent too much time and was cut off, or because there is no language parser enabled.
 
-class LanguageDescription Language descriptions are used to store metadata about languages
-and to dynamically load them. Their main role is finding the
-appropriate language for a filename or dynamically loading nested
-parsers.
+#### `class` [LanguageSupport](#language.LanguageSupport)
 
-name `:`string The name of this language.
+This class bundles a [language](#language.Language) with an optional set of supporting extensions. Language packages are encouraged to export a function that optionally takes a configuration object and returns a `LanguageSupport` instance, as the main way for client code to use the package.
 
-alias `:`readonly string `[]`Alternative names for the mode (lowercased, includes
+`new **[LanguageSupport](#language.LanguageSupport.constructor)**([language](#language.LanguageSupport.constructor^language): [Language](#language.Language), [support](#language.LanguageSupport.constructor^support)⁠?: [Extension](#state.Extension) = [])`
 
-`this.name`).
+Create a language support object.
 
-extensions `:`readonly string `[]`File extensions associated with this language.
+`**[extension](#language.LanguageSupport.extension)**: [Extension](#state.Extension)`
 
-filename `:`RegExp `|`undefined Optional filename pattern that should be associated with this
-language.
+An extension including both the language and its support extensions. (Allowing the object to be used as an extension value itself.)
 
-support `:`LanguageSupport `|`undefined If the language has been loaded, this will hold its value.
+`**[language](#language.LanguageSupport.language)**: [Language](#language.Language)`
 
-load `() →`Promise `<`LanguageSupport `>`Start loading the the language. Will return a promise that
-resolves to a
+The language object.
 
-`LanguageSupport`object when the language successfully loads.
+`**[support](#language.LanguageSupport.support)**: [Extension](#state.Extension)`
 
-static of `(`spec `:`Object `) →`LanguageDescription Create a language description.
+An optional set of supporting extensions. When nesting a language in another language, the outer language is encouraged to include the supporting extensions for its inner languages in its own set of support extensions.
 
-spec name `:`string The language's name.
+#### `class` [LanguageDescription](#language.LanguageDescription)
 
-alias `⁠?:`readonly string `[]`An optional array of alternative names.
+Language descriptions are used to store metadata about languages and to dynamically load them. Their main role is finding the appropriate language for a filename or dynamically loading nested parsers.
 
-extensions `⁠?:`readonly string `[]`An optional array of filename extensions associated with this
-language.
+`**[name](#language.LanguageDescription.name)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-filename `⁠?:`RegExp An optional filename pattern associated with this language.
+The name of this language.
 
-load `⁠?:`fn `() →`Promise `<`LanguageSupport `>`A function that will asynchronously load the language.
+`**[alias](#language.LanguageDescription.alias)**: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-support `⁠?:`LanguageSupport Alternatively to
+Alternative names for the mode (lowercased, includes `this.name`).
 
-`load`, you can provide an already loaded
-support object. Either this or
+`**[extensions](#language.LanguageDescription.extensions)**: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-`load`should be provided.
+File extensions associated with this language.
 
-static matchFilename `(`descs : readonly LanguageDescription [], filename : string `) →`LanguageDescription `|`null Look for a language in the given array of descriptions that
-matches the filename. Will first match
+`**[filename](#language.LanguageDescription.filename)**: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-`filename`patterns,
-and then
+Optional filename pattern that should be associated with this language.
 
-extensions ,
-and return the first language that matches.
+`**[support](#language.LanguageDescription.support)**: [LanguageSupport](#language.LanguageSupport) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-static matchLanguageName `(`descs : readonly LanguageDescription [], name : string , fuzzy ⁠?: boolean = true `) →`LanguageDescription `|`null Look for a language whose name or alias matches the the given
-name (case-insensitively). If
+If the language has been loaded, this will hold its value.
 
-`fuzzy`is true, and no direct
-matchs is found, this'll also search for a language whose name
-or alias occurs in the string (for names shorter than three
-characters, only when surrounded by non-word characters).
+`**[load](#language.LanguageDescription.load)**() → [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<[LanguageSupport](#language.LanguageSupport)>`
 
-class DocInput implements Input Lezer-style
+Start loading the the language. Will return a promise that resolves to a [`LanguageSupport`](#language.LanguageSupport) object when the language successfully loads.
 
-`Input`object for a
+`static **[of](#language.LanguageDescription^of)**([spec](#language.LanguageDescription^of^spec): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [LanguageDescription](#language.LanguageDescription)`
 
-`Text`object.
+Create a language description.
 
-new DocInput `(`doc `:`Text `)`Create an input object for the given document.
+`**[spec](#language.LanguageDescription^of^spec)**`
 
-doc `:`Text ### Highlighting
+`**[name](#language.LanguageDescription^of^spec.name)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-class HighlightStyle implements Highlighter A highlight style associates CSS styles with higlighting
+The language's name.
 
-tags .
+`**[alias](#language.LanguageDescription^of^spec.alias)**⁠?: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-module `:`StyleModule `|`null A style module holding the CSS rules for this highlight style.
-When using
+An optional array of alternative names.
 
-`highlightTree`outside of the editor, you may want to manually mount this
-module to show the highlighting.
+`**[extensions](#language.LanguageDescription^of^spec.extensions)**⁠?: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-specs `:`readonly TagStyle `[]`The tag styles used to create this highlight style.
+An optional array of filename extensions associated with this language.
 
-static define `(`specs `:`readonly TagStyle `[],`options `⁠?:`Object `) →`HighlightStyle Create a highlighter style that associates the given styles to
-the given tags. The specs must be objects that hold a style tag
-or array of tags in their
+`**[filename](#language.LanguageDescription^of^spec.filename)**⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)`
 
-`tag`property, and either a single
+An optional filename pattern associated with this language.
 
-`class`property providing a static CSS class (for highlighter
-that rely on external styling), or a
+`**[load](#language.LanguageDescription^of^spec.load)**⁠?: fn() → [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<[LanguageSupport](#language.LanguageSupport)>`
 
-`style-mod`-style
-set of CSS properties (which define the styling for those tags).
+A function that will asynchronously load the language.
 
-The CSS rules created for a highlighter will be emitted in the
-order of the spec's properties. That means that for elements that
-have multiple tags associated with them, styles defined further
-down in the list will have a higher CSS precedence than styles
-defined earlier.
+`**[support](#language.LanguageDescription^of^spec.support)**⁠?: [LanguageSupport](#language.LanguageSupport)`
 
-options scope `⁠?:`Language `|`NodeType By default, highlighters apply to the entire document. You can
-scope them to a single language by providing the language
-object or a language's top node type here.
+Alternatively to `load`, you can provide an already loaded support object. Either this or `load` should be provided.
 
-all `⁠?:`string `|`StyleSpec Add a style to
+`static **[matchFilename](#language.LanguageDescription^matchFilename)**(  [descs](#language.LanguageDescription^matchFilename^descs): readonly [LanguageDescription](#language.LanguageDescription)[],  [filename](#language.LanguageDescription^matchFilename^filename): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)  ) → [LanguageDescription](#language.LanguageDescription) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-all content. Probably only useful in
-combination with
+Look for a language in the given array of descriptions that matches the filename. Will first match [`filename`](#language.LanguageDescription.filename) patterns, and then [extensions](#language.LanguageDescription.extensions), and return the first language that matches.
 
-`scope`.
+`static **[matchLanguageName](#language.LanguageDescription^matchLanguageName)**(  [descs](#language.LanguageDescription^matchLanguageName^descs): readonly [LanguageDescription](#language.LanguageDescription)[],  [name](#language.LanguageDescription^matchLanguageName^name): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [fuzzy](#language.LanguageDescription^matchLanguageName^fuzzy)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) = true  ) → [LanguageDescription](#language.LanguageDescription) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-themeType `⁠?:`"dark" `|`"light" Specify that this highlight style should only be active then
-the theme is dark or light. By default, it is active
-regardless of theme.
+Look for a language whose name or alias matches the the given name (case-insensitively). If `fuzzy` is true, and no direct matchs is found, this'll also search for a language whose name or alias occurs in the string (for names shorter than three characters, only when surrounded by non-word characters).
 
-syntaxHighlighting `(`highlighter `:`Highlighter `,`options `⁠?:`Object `) →`Extension Wrap a highlighter in an editor extension that uses it to apply
-syntax highlighting to the editor content.
+#### `class` [DocInput](#language.DocInput) `implements [Input](https://lezer.codemirror.net/docs/ref/#common.Input)`
 
-When multiple (non-fallback) styles are provided, the styling
-applied is the union of the classes they emit.
+Lezer-style [`Input`](https://lezer.codemirror.net/docs/ref#common.Input) object for a [`Text`](#state.Text) object.
 
-options fallback `:`boolean When enabled, this marks the highlighter as a fallback, which
-only takes effect if no other highlighters are registered.
+`new **[DocInput](#language.DocInput.constructor)**([doc](#language.DocInput.constructor^doc): [Text](#state.Text))`
 
-interface TagStyle The type of object used in
+Create an input object for the given document.
 
-`HighlightStyle.define`.
-Assigns a style to one or more highlighting
+`**[doc](#language.DocInput.doc)**: [Text](#state.Text)`
 
-tags , which can either be a fixed class name
-(which must be defined elsewhere), or a set of CSS properties, for
-which the library will define an anonymous class.
+### Highlighting
 
-tag `:`Tag `|`readonly Tag `[]`The tag or tags to target.
+#### `class` [HighlightStyle](#language.HighlightStyle) `implements [Highlighter](https://lezer.codemirror.net/docs/ref/#highlight.Highlighter)`
 
-class `⁠?:`string If given, this maps the tags to a fixed class name.
+A highlight style associates CSS styles with higlighting [tags](https://lezer.codemirror.net/docs/ref#highlight.Tag).
 
-[string] `:`any Any further properties (if
+`**[module](#language.HighlightStyle.module)**: [StyleModule](https://github.com/marijnh/style-mod#documentation) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`class`isn't given) will be
-interpreted as in style objects given to
+A style module holding the CSS rules for this highlight style. When using [`highlightTree`](https://lezer.codemirror.net/docs/ref#highlight.highlightTree) outside of the editor, you may want to manually mount this module to show the highlighting.
 
-style-mod .
-(The type here is
+`**[specs](#language.HighlightStyle.specs)**: readonly [TagStyle](#language.TagStyle)[]`
 
-`any`because of TypeScript limitations.)
+The tag styles used to create this highlight style.
 
-defaultHighlightStyle `:`HighlightStyle A default highlight style (works well with light themes).
+`static **[define](#language.HighlightStyle^define)**([specs](#language.HighlightStyle^define^specs): readonly [TagStyle](#language.TagStyle)[], [options](#language.HighlightStyle^define^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [HighlightStyle](#language.HighlightStyle)`
 
-highlightingFor `(`state : EditorState , tags : readonly Tag [], scope ⁠?: NodeType `) →`string `|`null Returns the CSS classes (if any) that the highlighters active in
-the state would assign to the given style
+Create a highlighter style that associates the given styles to the given tags. The specs must be objects that hold a style tag or array of tags in their `tag` property, and either a single `class` property providing a static CSS class (for highlighter that rely on external styling), or a [`style-mod`](https://github.com/marijnh/style-mod#documentation)\-style set of CSS properties (which define the styling for those tags).
 
-tags and
-(optional) language
+The CSS rules created for a highlighter will be emitted in the order of the spec's properties. That means that for elements that have multiple tags associated with them, styles defined further down in the list will have a higher CSS precedence than styles defined earlier.
 
-scope .
+`**[options](#language.HighlightStyle^define^options)**`
 
-bidiIsolates `(`options `⁠?:`Object = {} `) →`Extension Make sure nodes
+`**[scope](#language.HighlightStyle^define^options.scope)**⁠?: [Language](#language.Language) | [NodeType](https://lezer.codemirror.net/docs/ref/#common.NodeType)`
 
-marked as isolating for bidirectional text are rendered in a way that
-isolates them from the surrounding text.
+By default, highlighters apply to the entire document. You can scope them to a single language by providing the language object or a language's top node type here.
 
-options alwaysIsolate `⁠?:`boolean By default, isolating elements are only added when the editor
-direction isn't uniformly left-to-right, or if it is, on lines
-that contain right-to-left character. When true, disable this
-optimization and add them everywhere.
+`**[all](#language.HighlightStyle^define^options.all)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [StyleSpec](https://github.com/marijnh/style-mod#documentation)`
+
+Add a style to _all_ content. Probably only useful in combination with `scope`.
+
+`**[themeType](#language.HighlightStyle^define^options.themeType)**⁠?: "dark" | "light"`
+
+Specify that this highlight style should only be active then the theme is dark or light. By default, it is active regardless of theme.
+
+`**[syntaxHighlighting](#language.syntaxHighlighting)**([highlighter](#language.syntaxHighlighting^highlighter): [Highlighter](https://lezer.codemirror.net/docs/ref/#highlight.Highlighter), [options](#language.syntaxHighlighting^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [Extension](#state.Extension)`
+
+Wrap a highlighter in an editor extension that uses it to apply syntax highlighting to the editor content.
+
+When multiple (non-fallback) styles are provided, the styling applied is the union of the classes they emit.
+
+`**[options](#language.syntaxHighlighting^options)**`
+
+`**[fallback](#language.syntaxHighlighting^options.fallback)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+When enabled, this marks the highlighter as a fallback, which only takes effect if no other highlighters are registered.
+
+#### `interface` [TagStyle](#language.TagStyle)
+
+The type of object used in [`HighlightStyle.define`](#language.HighlightStyle%5Edefine). Assigns a style to one or more highlighting [tags](https://lezer.codemirror.net/docs/ref#highlight.Tag), which can either be a fixed class name (which must be defined elsewhere), or a set of CSS properties, for which the library will define an anonymous class.
+
+`**[tag](#language.TagStyle.tag)**: [Tag](https://lezer.codemirror.net/docs/ref/#highlight.Tag) | readonly [Tag](https://lezer.codemirror.net/docs/ref/#highlight.Tag)[]`
+
+The tag or tags to target.
+
+`**[class](#language.TagStyle.class)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+If given, this maps the tags to a fixed class name.
+
+`**[[string]](#language.TagStyle^string)**: any`
+
+Any further properties (if `class` isn't given) will be interpreted as in style objects given to [style-mod](https://github.com/marijnh/style-mod#documentation). (The type here is `any` because of TypeScript limitations.)
+
+`**[defaultHighlightStyle](#language.defaultHighlightStyle)**: [HighlightStyle](#language.HighlightStyle)`
+
+A default highlight style (works well with light themes).
+
+`**[highlightingFor](#language.highlightingFor)**(  [state](#language.highlightingFor^state): [EditorState](#state.EditorState),  [tags](#language.highlightingFor^tags): readonly [Tag](https://lezer.codemirror.net/docs/ref/#highlight.Tag)[],  [scope](#language.highlightingFor^scope)⁠?: [NodeType](https://lezer.codemirror.net/docs/ref/#common.NodeType)  ) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
+
+Returns the CSS classes (if any) that the highlighters active in the state would assign to the given style [tags](https://lezer.codemirror.net/docs/ref#highlight.Tag) and (optional) language [scope](#language.HighlightStyle%5Edefine%5Eoptions.scope).
+
+`**[bidiIsolates](#language.bidiIsolates)**([options](#language.bidiIsolates^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [Extension](#state.Extension)`
+
+Make sure nodes [marked](https://lezer.codemirror.net/docs/ref/#common.NodeProp%5Eisolate) as isolating for bidirectional text are rendered in a way that isolates them from the surrounding text.
+
+`**[options](#language.bidiIsolates^options)**`
+
+`**[alwaysIsolate](#language.bidiIsolates^options.alwaysIsolate)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+By default, isolating elements are only added when the editor direction isn't uniformly left-to-right, or if it is, on lines that contain right-to-left character. When true, disable this optimization and add them everywhere.
 
 ### Folding
 
-These exports provide commands and other functionality related to code
-folding (temporarily hiding pieces of code).
+These exports provide commands and other functionality related to code folding (temporarily hiding pieces of code).
 
-foldService `:`Facet `<`fn ( state : EditorState , lineStart : number , lineEnd : number ) → { from : number , to : number } | null `>`A facet that registers a code folding service. When called with
-the extent of a line, such a function should return a foldable
-range that starts on that line (but continues beyond it), if one
-can be found.
+`**[foldService](#language.foldService)**: [Facet](#state.Facet)<  fn([state](#language.foldService^state): [EditorState](#state.EditorState), [lineStart](#language.foldService^lineStart): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [lineEnd](#language.foldService^lineEnd): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-foldNodeProp `:`NodeProp `<`fn ( node : SyntaxNode , state : EditorState ) → { from : number , to : number } | null `>`This node prop is used to associate folding information with
-syntax node types. Given a syntax node, it should check whether
-that tree is foldable and return the range that can be collapsed
-when it is.
+A facet that registers a code folding service. When called with the extent of a line, such a function should return a foldable range that starts on that line (but continues beyond it), if one can be found.
 
-foldInside `(`node `:`SyntaxNode `) → {`from `:`number `,`to `:`number `} |`null Fold function that folds everything but
-the first and the last child of a syntax node. Useful for nodes
-that start and end with delimiters.
+`**[foldNodeProp](#language.foldNodeProp)**: [NodeProp](https://lezer.codemirror.net/docs/ref/#common.NodeProp)<  fn([node](#language.foldNodeProp^node): [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode), [state](#language.foldNodeProp^state): [EditorState](#state.EditorState)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  >`
 
-foldable `(`state `:`EditorState `,`lineStart `:`number `,`lineEnd `:`number `) → {`from `:`number `,`to `:`number `} |`null Check whether the given line is foldable. First asks any fold
-services registered through
+This node prop is used to associate folding information with syntax node types. Given a syntax node, it should check whether that tree is foldable and return the range that can be collapsed when it is.
 
-`foldService`, and if none of them return
-a result, tries to query the
+`**[foldInside](#language.foldInside)**([node](#language.foldInside^node): [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-fold node
-prop of syntax nodes that cover the end
-of the line.
+[Fold](#language.foldNodeProp) function that folds everything but the first and the last child of a syntax node. Useful for nodes that start and end with delimiters.
 
-foldCode `:`Command Fold the lines that are selected, if possible.
+`**[foldable](#language.foldable)**([state](#language.foldable^state): [EditorState](#state.EditorState), [lineStart](#language.foldable^lineStart): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [lineEnd](#language.foldable^lineEnd): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-unfoldCode `:`Command Unfold folded ranges on selected lines.
+Check whether the given line is foldable. First asks any fold services registered through [`foldService`](#language.foldService), and if none of them return a result, tries to query the [fold node prop](#language.foldNodeProp) of syntax nodes that cover the end of the line.
 
-toggleFold `:`Command Toggle folding at cursors. Unfolds if there is an existing fold
-starting in that line, tries to find a foldable range around it
-otherwise.
+`**[foldCode](#language.foldCode)**: [Command](#view.Command)`
 
-foldAll `:`Command Fold all top-level foldable ranges. Note that, in most cases,
-folding information will depend on the
+Fold the lines that are selected, if possible.
 
-syntax
-tree , and folding everything may not work
-reliably when the document hasn't been fully parsed (either
-because the editor state was only just initialized, or because the
-document is so big that the parser decided not to parse it
-entirely).
+`**[unfoldCode](#language.unfoldCode)**: [Command](#view.Command)`
 
-unfoldAll `:`Command Unfold all folded code.
+Unfold folded ranges on selected lines.
 
-foldKeymap `:`readonly KeyBinding `[]`Default fold-related key bindings.
+`**[toggleFold](#language.toggleFold)**: [Command](#view.Command)`
 
-- Ctrl-Shift-[ (Cmd-Alt-[ on macOS):
-`foldCode`- .
-- Ctrl-Shift-] (Cmd-Alt-] on macOS):
-`unfoldCode`- .
-- Ctrl-Alt-[:
-`foldAll`- .
-- Ctrl-Alt-]:
-`unfoldAll`- .
-codeFolding `(`config `⁠?:`Object `) →`Extension Create an extension that configures code folding.
+Toggle folding at cursors. Unfolds if there is an existing fold starting in that line, tries to find a foldable range around it otherwise.
 
-config placeholderDOM `⁠?:`fn `(`view : EditorView , onclick : fn ( event : Event ), prepared : any `) →`HTMLElement A function that creates the DOM element used to indicate the
-position of folded code. The
+`**[foldAll](#language.foldAll)**: [Command](#view.Command)`
 
-`onclick`argument is the default
-click event handler, which toggles folding on the line that
-holds the element, and should probably be added as an event
-handler to the returned element. If
+Fold all top-level foldable ranges. Note that, in most cases, folding information will depend on the [syntax tree](#language.syntaxTree), and folding everything may not work reliably when the document hasn't been fully parsed (either because the editor state was only just initialized, or because the document is so big that the parser decided not to parse it entirely).
 
-`preparePlaceholder`is given, its result will be passed as 3rd argument. Otherwise,
-this will be null.
+`**[unfoldAll](#language.unfoldAll)**: [Command](#view.Command)`
 
-When this option isn't given, the
+Unfold all folded code.
 
-`placeholderText`option will
-be used to create the placeholder element.
+`**[foldKeymap](#language.foldKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-placeholderText `⁠?:`string Text to use as placeholder for folded text. Defaults to
+Default fold-related key bindings.
 
-`"…"`.
-Will be styled with the
+- Ctrl-Shift-\[ (Cmd-Alt-\[ on macOS): [`foldCode`](#language.foldCode).
+- Ctrl-Shift-\] (Cmd-Alt-\] on macOS): [`unfoldCode`](#language.unfoldCode).
+- Ctrl-Alt-\[: [`foldAll`](#language.foldAll).
+- Ctrl-Alt-\]: [`unfoldAll`](#language.unfoldAll).
 
-`"cm-foldPlaceholder"`class.
+`**[codeFolding](#language.codeFolding)**([config](#language.codeFolding^config)⁠?: Object) → [Extension](#state.Extension)`
 
-preparePlaceholder `⁠?:`fn `(`state : EditorState , range : { from : number , to : number } `) →`any Given a range that is being folded, create a value that
-describes it, to be used by
+Create an extension that configures code folding.
 
-`placeholderDOM`to render a custom
-widget that, for example, indicates something about the folded
-range's size or type.
+`**[config](#language.codeFolding^config)**`
 
-foldGutter `(`config `⁠?:`Object = {} `) →`Extension Create an extension that registers a fold gutter, which shows a
-fold status indicator before foldable lines (which can be clicked
-to fold or unfold the line).
+`**[placeholderDOM](#language.codeFolding^config.placeholderDOM)**⁠?: fn(  [view](#language.codeFolding^config.placeholderDOM^view): [EditorView](#view.EditorView),  [onclick](#language.codeFolding^config.placeholderDOM^onclick): fn([event](#language.codeFolding^config.placeholderDOM^onclick^event): [Event](https://developer.mozilla.org/en-US/docs/DOM/event)),  [prepared](#language.codeFolding^config.placeholderDOM^prepared): any  ) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-config markerDOM `⁠?:`fn `(`open `:`boolean `) →`HTMLElement A function that creates the DOM element used to indicate a
-given line is folded or can be folded.
-When not given, the
+A function that creates the DOM element used to indicate the position of folded code. The `onclick` argument is the default click event handler, which toggles folding on the line that holds the element, and should probably be added as an event handler to the returned element. If [`preparePlaceholder`](#language.FoldConfig.preparePlaceholder) is given, its result will be passed as 3rd argument. Otherwise, this will be null.
 
-`openText`/
+When this option isn't given, the `placeholderText` option will be used to create the placeholder element.
 
-`closeText`option will be used instead.
+`**[placeholderText](#language.codeFolding^config.placeholderText)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-openText `⁠?:`string Text used to indicate that a given line can be folded.
-Defaults to
+Text to use as placeholder for folded text. Defaults to `"…"`. Will be styled with the `"cm-foldPlaceholder"` class.
 
-`"⌄"`.
+`**[preparePlaceholder](#language.codeFolding^config.preparePlaceholder)**⁠?: fn(  [state](#language.codeFolding^config.preparePlaceholder^state): [EditorState](#state.EditorState),  [range](#language.codeFolding^config.preparePlaceholder^range): {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}  ) → any`
 
-closedText `⁠?:`string Text used to indicate that a given line is folded.
-Defaults to
+Given a range that is being folded, create a value that describes it, to be used by `placeholderDOM` to render a custom widget that, for example, indicates something about the folded range's size or type.
 
-`"›"`.
+`**[foldGutter](#language.foldGutter)**([config](#language.foldGutter^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-domEventHandlers `⁠?:`Object `<`fn ( view : EditorView , line : BlockInfo , event : Event ) → boolean `>`Supply event handlers for DOM events on this gutter.
+Create an extension that registers a fold gutter, which shows a fold status indicator before foldable lines (which can be clicked to fold or unfold the line).
 
-foldingChanged `⁠?:`fn `(`update `:`ViewUpdate `) →`boolean When given, if this returns true for a given view update,
-recompute the fold markers.
+`**[config](#language.foldGutter^config)**`
 
-The following functions provide more direct, low-level control over
-the fold state.
+`**[markerDOM](#language.foldGutter^config.markerDOM)**⁠?: fn([open](#language.foldGutter^config.markerDOM^open): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-foldedRanges `(`state `:`EditorState `) →`DecorationSet Get a
+A function that creates the DOM element used to indicate a given line is folded or can be folded. When not given, the `openText`/`closeText` option will be used instead.
 
-range set containing the folded ranges
-in the given state.
+`**[openText](#language.foldGutter^config.openText)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-foldState `:`StateField `<`DecorationSet `>`The state field that stores the folded ranges (as a
+Text used to indicate that a given line can be folded. Defaults to `"⌄"`.
 
-decoration
-set ). Can be passed to
+`**[closedText](#language.foldGutter^config.closedText)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`EditorState.toJSON`and
+Text used to indicate that a given line is folded. Defaults to `"›"`.
 
-`fromJSON`to serialize the fold
-state.
+`**[domEventHandlers](#language.foldGutter^config.domEventHandlers)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<  fn([view](#language.foldGutter^config.domEventHandlers^view): [EditorView](#view.EditorView), [line](#language.foldGutter^config.domEventHandlers^line): [BlockInfo](#view.BlockInfo), [event](#language.foldGutter^config.domEventHandlers^event): [Event](https://developer.mozilla.org/en-US/docs/DOM/event)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  >`
 
-foldEffect `:`StateEffectType `<{`from `:`number `,`to `:`number `}>`State effect that can be attached to a transaction to fold the
-given range. (You probably only need this in exceptional
-circumstances—usually you'll just want to let
+Supply event handlers for DOM events on this gutter.
 
-`foldCode`and the
+`**[foldingChanged](#language.foldGutter^config.foldingChanged)**⁠?: fn([update](#language.foldGutter^config.foldingChanged^update): [ViewUpdate](#view.ViewUpdate)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-fold
-gutter create the transactions.)
+When given, if this returns true for a given view update, recompute the fold markers.
 
-unfoldEffect `:`StateEffectType `<{`from `:`number `,`to `:`number `}>`State effect that unfolds the given range (if it was folded).
+The following functions provide more direct, low-level control over the fold state.
+
+`**[foldedRanges](#language.foldedRanges)**([state](#language.foldedRanges^state): [EditorState](#state.EditorState)) → [DecorationSet](#view.DecorationSet)`
+
+Get a [range set](#state.RangeSet) containing the folded ranges in the given state.
+
+`**[foldState](#language.foldState)**: [StateField](#state.StateField)<[DecorationSet](#view.DecorationSet)>`
+
+The state field that stores the folded ranges (as a [decoration set](#view.DecorationSet)). Can be passed to [`EditorState.toJSON`](#state.EditorState.toJSON) and [`fromJSON`](#state.EditorState%5EfromJSON) to serialize the fold state.
+
+`**[foldEffect](#language.foldEffect)**: [StateEffectType](#state.StateEffectType)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}>`
+
+State effect that can be attached to a transaction to fold the given range. (You probably only need this in exceptional circumstances—usually you'll just want to let [`foldCode`](#language.foldCode) and the [fold gutter](#language.foldGutter) create the transactions.)
+
+`**[unfoldEffect](#language.unfoldEffect)**: [StateEffectType](#state.StateEffectType)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}>`
+
+State effect that unfolds the given range (if it was folded).
 
 ### Indentation
 
-indentService `:`Facet `<`fn ( context : IndentContext , pos : number ) → number | null | undefined `>`Facet that defines a way to provide a function that computes the
-appropriate indentation depth, as a column number (see
+`**[indentService](#language.indentService)**: [Facet](#state.Facet)<  fn([context](#language.indentService^context): [IndentContext](#language.IndentContext), [pos](#language.indentService^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)  >`
 
-`indentString`), at the start of a given
-line. A return value of
+Facet that defines a way to provide a function that computes the appropriate indentation depth, as a column number (see [`indentString`](#language.indentString)), at the start of a given line. A return value of `null` indicates no indentation can be determined, and the line should inherit the indentation of the one above it. A return value of `undefined` defers to the next indent service.
 
-`null`indicates no indentation can be
-determined, and the line should inherit the indentation of the one
-above it. A return value of
+`**[indentNodeProp](#language.indentNodeProp)**: [NodeProp](https://lezer.codemirror.net/docs/ref/#common.NodeProp)<fn([context](#language.indentNodeProp^context): [TreeIndentContext](#language.TreeIndentContext)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-`undefined`defers to the next indent
-service.
+A syntax tree node prop used to associate indentation strategies with node types. Such a strategy is a function from an indentation context to a column number (see also [`indentString`](#language.indentString)) or null, where null indicates that no definitive indentation can be determined.
 
-indentNodeProp `:`NodeProp `<`fn `(`context `:`TreeIndentContext `) →`number `|`null `>`A syntax tree node prop used to associate indentation strategies
-with node types. Such a strategy is a function from an indentation
-context to a column number (see also
+`**[getIndentation](#language.getIndentation)**([context](#language.getIndentation^context): [IndentContext](#language.IndentContext) | [EditorState](#state.EditorState), [pos](#language.getIndentation^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`indentString`) or null, where null
-indicates that no definitive indentation can be determined.
+Get the indentation, as a column number, at the given position. Will first consult any [indent services](#language.indentService) that are registered, and if none of those return an indentation, this will check the syntax tree for the [indent node prop](#language.indentNodeProp) and use that if found. Returns a number when an indentation could be determined, and null otherwise.
 
-getIndentation `(`context `:`IndentContext `|`EditorState `,`pos `:`number `) →`number `|`null Get the indentation, as a column number, at the given position.
-Will first consult any
+`**[indentRange](#language.indentRange)**([state](#language.indentRange^state): [EditorState](#state.EditorState), [from](#language.indentRange^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#language.indentRange^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [ChangeSet](#state.ChangeSet)`
 
-indent services that are registered, and if none of those return an indentation,
-this will check the syntax tree for the
+Create a change set that auto-indents all lines touched by the given document range.
 
-indent node
-prop and use that if found. Returns a
-number when an indentation could be determined, and null
-otherwise.
+`**[indentUnit](#language.indentUnit)**: [Facet](#state.Facet)<[string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)>`
 
-indentRange `(`state `:`EditorState `,`from `:`number `,`to `:`number `) →`ChangeSet Create a change set that auto-indents all lines touched by the
-given document range.
+Facet for overriding the unit by which indentation happens. Should be a string consisting either entirely of the same whitespace character. When not set, this defaults to 2 spaces.
 
-indentUnit `:`Facet `<`string `,`string `>`Facet for overriding the unit by which indentation happens. Should
-be a string consisting either entirely of the same whitespace
-character. When not set, this defaults to 2 spaces.
+`**[getIndentUnit](#language.getIndentUnit)**([state](#language.getIndentUnit^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-getIndentUnit `(`state `:`EditorState `) →`number Return the
+Return the _column width_ of an indent unit in the state. Determined by the [`indentUnit`](#language.indentUnit) facet, and [`tabSize`](#state.EditorState%5EtabSize) when that contains tabs.
 
-column width of an indent unit in the state.
-Determined by the
+`**[indentString](#language.indentString)**([state](#language.indentString^state): [EditorState](#state.EditorState), [cols](#language.indentString^cols): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`indentUnit`facet, and
+Create an indentation string that covers columns 0 to `cols`. Will use tabs for as much of the columns as possible when the [`indentUnit`](#language.indentUnit) facet contains tabs.
 
-`tabSize`when that
-contains tabs.
+#### `class` [IndentContext](#language.IndentContext)
 
-indentString `(`state `:`EditorState `,`cols `:`number `) →`string Create an indentation string that covers columns 0 to
+Indentation contexts are used when calling [indentation services](#language.indentService). They provide helper utilities useful in indentation logic, and can selectively override the indentation reported for some lines.
 
-`cols`.
-Will use tabs for as much of the columns as possible when the
+`new **[IndentContext](#language.IndentContext.constructor)**([state](#language.IndentContext.constructor^state): [EditorState](#state.EditorState), [options](#language.IndentContext.constructor^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {})`
 
-`indentUnit`facet contains
-tabs.
+Create an indent context.
 
-class IndentContext Indentation contexts are used when calling
+`**[options](#language.IndentContext.constructor^options)**`
 
-indentation
-services . They provide helper utilities
-useful in indentation logic, and can selectively override the
-indentation reported for some lines.
+`**[overrideIndentation](#language.IndentContext.constructor^options.overrideIndentation)**⁠?: fn([pos](#language.IndentContext.constructor^options.overrideIndentation^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-new IndentContext `(`state `:`EditorState `,`options `⁠?:`Object = {} `)`Create an indent context.
+Override line indentations provided to the indentation helper function, which is useful when implementing region indentation, where indentation for later lines needs to refer to previous lines, which may have been reindented compared to the original start state. If given, this function should return -1 for lines (given by start position) that didn't change, and an updated indentation otherwise.
 
-options overrideIndentation `⁠?:`fn `(`pos `:`number `) →`number Override line indentations provided to the indentation
-helper function, which is useful when implementing region
-indentation, where indentation for later lines needs to refer
-to previous lines, which may have been reindented compared to
-the original start state. If given, this function should
-return -1 for lines (given by start position) that didn't
-change, and an updated indentation otherwise.
+`**[simulateBreak](#language.IndentContext.constructor^options.simulateBreak)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-simulateBreak `⁠?:`number Make it look, to the indent logic, like a line break was
-added at the given position (which is mostly just useful for
-implementing something like
+Make it look, to the indent logic, like a line break was added at the given position (which is mostly just useful for implementing something like [`insertNewlineAndIndent`](#commands.insertNewlineAndIndent)).
 
-`insertNewlineAndIndent`).
+`**[simulateDoubleBreak](#language.IndentContext.constructor^options.simulateDoubleBreak)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-simulateDoubleBreak `⁠?:`boolean When
+When `simulateBreak` is given, this can be used to make the simulated break behave like a double line break.
 
-`simulateBreak`is given, this can be used to make the
-simulated break behave like a double line break.
+`**[unit](#language.IndentContext.unit)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-unit `:`number The indent unit (number of columns per indentation level).
+The indent unit (number of columns per indentation level).
 
-state `:`EditorState The editor state.
+`**[state](#language.IndentContext.state)**: [EditorState](#state.EditorState)`
 
-lineAt `(`pos `:`number `,`bias `⁠?:`-1 `|`1 = 1 `) → {`text `:`string `,`from `:`number `}`Get a description of the line at the given position, taking
+The editor state.
 
-simulated line
-breaks into account. If there is such a break at
+`**[lineAt](#language.IndentContext.lineAt)**([pos](#language.IndentContext.lineAt^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [bias](#language.IndentContext.lineAt^bias)⁠?: -1 | 1 = 1) → {text: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-`pos`, the
+Get a description of the line at the given position, taking [simulated line breaks](#language.IndentContext.constructor%5Eoptions.simulateBreak) into account. If there is such a break at `pos`, the `bias` argument determines whether the part of the line line before or after the break is used.
 
-`bias`argument determines whether the part of the line line before or
-after the break is used.
+`**[textAfterPos](#language.IndentContext.textAfterPos)**([pos](#language.IndentContext.textAfterPos^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [bias](#language.IndentContext.textAfterPos^bias)⁠?: -1 | 1 = 1) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-textAfterPos `(`pos `:`number `,`bias `⁠?:`-1 `|`1 = 1 `) →`string Get the text directly after
+Get the text directly after `pos`, either the entire line or the next 100 characters, whichever is shorter.
 
-`pos`, either the entire line
-or the next 100 characters, whichever is shorter.
+`**[column](#language.IndentContext.column)**([pos](#language.IndentContext.column^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [bias](#language.IndentContext.column^bias)⁠?: -1 | 1 = 1) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-column `(`pos `:`number `,`bias `⁠?:`-1 `|`1 = 1 `) →`number Find the column for the given position.
+Find the column for the given position.
 
-countColumn `(`line `:`string `,`pos `⁠?:`number = line.length `) →`number Find the column position (taking tabs into account) of the given
-position in the given string.
+`**[countColumn](#language.IndentContext.countColumn)**([line](#language.IndentContext.countColumn^line): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [pos](#language.IndentContext.countColumn^pos)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = line.length) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-lineIndent `(`pos `:`number `,`bias `⁠?:`-1 `|`1 = 1 `) →`number Find the indentation column of the line at the given point.
+Find the column position (taking tabs into account) of the given position in the given string.
 
-simulatedBreak `:`number `|`null Returns the
+`**[lineIndent](#language.IndentContext.lineIndent)**([pos](#language.IndentContext.lineIndent^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [bias](#language.IndentContext.lineIndent^bias)⁠?: -1 | 1 = 1) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-simulated line
-break for this context, if any.
+Find the indentation column of the line at the given point.
 
-class TreeIndentContext extends IndentContext Objects of this type provide context information and helper
-methods to indentation functions registered on syntax nodes.
+`**[simulatedBreak](#language.IndentContext.simulatedBreak)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-pos `:`number The position at which indentation is being computed.
+Returns the [simulated line break](#language.IndentContext.constructor%5Eoptions.simulateBreak) for this context, if any.
 
-node `:`SyntaxNode The syntax tree node to which the indentation strategy
-applies.
+#### `class` [TreeIndentContext](#language.TreeIndentContext) `extends [IndentContext](#language.IndentContext)`
 
-textAfter `:`string Get the text directly after
+Objects of this type provide context information and helper methods to indentation functions registered on syntax nodes.
 
-`this.pos`, either the entire line
-or the next 100 characters, whichever is shorter.
+`**[pos](#language.TreeIndentContext.pos)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-baseIndent `:`number Get the indentation at the reference line for
+The position at which indentation is being computed.
 
-`this.node`, which
-is the line on which it starts, unless there is a node that is
+`**[node](#language.TreeIndentContext.node)**: [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode)`
 
-not a parent of this node covering the start of that line. If
-so, the line at the start of that node is tried, again skipping
-on if it is covered by another such node.
+The syntax tree node to which the indentation strategy applies.
 
-baseIndentFor `(`node `:`SyntaxNode `) →`number Get the indentation for the reference line of the given node
-(see
+`**[textAfter](#language.TreeIndentContext.textAfter)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`baseIndent`).
+Get the text directly after `this.pos`, either the entire line or the next 100 characters, whichever is shorter.
 
-continue `() →`number `|`null Continue looking for indentations in the node's parent nodes,
-and return the result of that.
+`**[baseIndent](#language.TreeIndentContext.baseIndent)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-delimitedIndent `({`closing `:`string `,`align `⁠?:`boolean `,`units `⁠?:`number `}) →`fn `(`context `:`TreeIndentContext `) →`number An indentation strategy for delimited (usually bracketed) nodes.
-Will, by default, indent one unit more than the parent's base
-indent unless the line starts with a closing token. When
+Get the indentation at the reference line for `this.node`, which is the line on which it starts, unless there is a node that is _not_ a parent of this node covering the start of that line. If so, the line at the start of that node is tried, again skipping on if it is covered by another such node.
 
-`align`is true and there are non-skipped nodes on the node's opening
-line, the content of the node will be aligned with the end of the
-opening node, like this:
+`**[baseIndentFor](#language.TreeIndentContext.baseIndentFor)**([node](#language.TreeIndentContext.baseIndentFor^node): [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`foo(bar,
-    baz)`continuedIndent `({`except `⁠?:`RegExp `,`units `⁠?:`number `}`= {} `) →`fn `(`context `:`TreeIndentContext `) →`number Creates an indentation strategy that, by default, indents
-continued lines one unit more than the node's base indentation.
-You can provide
+Get the indentation for the reference line of the given node (see [`baseIndent`](#language.TreeIndentContext.baseIndent)).
 
-`except`to prevent indentation of lines that
-match a pattern (for example
+`**[continue](#language.TreeIndentContext.continue)**() → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`/^else\b/`in
+Continue looking for indentations in the node's parent nodes, and return the result of that.
 
-`if`/
+`**[delimitedIndent](#language.delimitedIndent)**({closing: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), align⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), units⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}) → fn([context](#language.delimitedIndent^returns^context): [TreeIndentContext](#language.TreeIndentContext)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`else`constructs), and you can change the amount of units used with the
+An indentation strategy for delimited (usually bracketed) nodes. Will, by default, indent one unit more than the parent's base indent unless the line starts with a closing token. When `align` is true and there are non-skipped nodes on the node's opening line, the content of the node will be aligned with the end of the opening node, like this:
 
-`units`option.
+    foo(bar,
+        baz)
 
-flatIndent `(`context `:`TreeIndentContext `) →`number An indentation strategy that aligns a node's content to its base
-indentation.
+`**[continuedIndent](#language.continuedIndent)**({except⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp), units⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)} = {}) → fn([context](#language.continuedIndent^returns^context): [TreeIndentContext](#language.TreeIndentContext)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-indentOnInput `() →`Extension Enables reindentation on input. When a language defines an
+Creates an indentation strategy that, by default, indents continued lines one unit more than the node's base indentation. You can provide `except` to prevent indentation of lines that match a pattern (for example `/^else\b/` in `if`/`else` constructs), and you can change the amount of units used with the `units` option.
 
-`indentOnInput`field in its
+`**[flatIndent](#language.flatIndent)**([context](#language.flatIndent^context): [TreeIndentContext](#language.TreeIndentContext)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-language
-data , which must hold a regular
-expression, the line at the cursor will be reindented whenever new
-text is typed and the input from the start of the line up to the
-cursor matches that regexp.
+An indentation strategy that aligns a node's content to its base indentation.
 
-To avoid unneccesary reindents, it is recommended to start the
-regexp with
+`**[indentOnInput](#language.indentOnInput)**() → [Extension](#state.Extension)`
 
-`^`(usually followed by
+Enables reindentation on input. When a language defines an `indentOnInput` field in its [language data](#state.EditorState.languageDataAt), which must hold a regular expression, the line at the cursor will be reindented whenever new text is typed and the input from the start of the line up to the cursor matches that regexp.
 
-`\s*`), and end it with
-
-`$`.
-For example,
-
-`/^\s*\}$/`will reindent when a closing brace is
-added at the start of a line.
+To avoid unneccesary reindents, it is recommended to start the regexp with `^` (usually followed by `\s*`), and end it with `$`. For example, `/^\s*\}$/` will reindent when a closing brace is added at the start of a line.
 
 ### Bracket Matching
 
-bracketMatching `(`config `⁠?:`Config = {} `) →`Extension Create an extension that enables bracket matching. Whenever the
-cursor is next to a bracket, that bracket and the one it matches
-are highlighted. Or, when no matching bracket is found, another
-highlighting style is used to indicate this.
+`**[bracketMatching](#language.bracketMatching)**([config](#language.bracketMatching^config)⁠?: [Config](#language.Config) = {}) → [Extension](#state.Extension)`
 
-interface Config afterCursor `⁠?:`boolean Whether the bracket matching should look at the character after
-the cursor when matching (if the one before isn't a bracket).
-Defaults to true.
+Create an extension that enables bracket matching. Whenever the cursor is next to a bracket, that bracket and the one it matches are highlighted. Or, when no matching bracket is found, another highlighting style is used to indicate this.
 
-brackets `⁠?:`string The bracket characters to match, as a string of pairs. Defaults
-to
+#### `interface` [Config](#language.Config)
 
-`"()[]{}"`. Note that these are only used as fallback when
-there is no
+`**[afterCursor](#language.Config.afterCursor)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-matching
-information in the syntax tree.
+Whether the bracket matching should look at the character after the cursor when matching (if the one before isn't a bracket). Defaults to true.
 
-maxScanDistance `⁠?:`number The maximum distance to scan for matching brackets. This is only
-relevant for brackets not encoded in the syntax tree. Defaults
-to 10 000.
+`**[brackets](#language.Config.brackets)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-renderMatch `⁠?:`fn `(`match `:`MatchResult `,`state `:`EditorState `) →`readonly Range `<`Decoration `>[]`Can be used to configure the way in which brackets are
-decorated. The default behavior is to add the
+The bracket characters to match, as a string of pairs. Defaults to `"()[]{}"`. Note that these are only used as fallback when there is no [matching information](https://lezer.codemirror.net/docs/ref/#common.NodeProp%5EclosedBy) in the syntax tree.
 
-`cm-matchingBracket`class for matching pairs, and
+`**[maxScanDistance](#language.Config.maxScanDistance)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`cm-nonmatchingBracket`for mismatched pairs or single brackets.
+The maximum distance to scan for matching brackets. This is only relevant for brackets not encoded in the syntax tree. Defaults to 10 000.
 
-matchBrackets `(`state : EditorState , pos : number , dir : -1 | 1 , config ⁠?: Config = {} `) →`MatchResult `|`null Find the matching bracket for the token at
+`**[renderMatch](#language.Config.renderMatch)**⁠?: fn([match](#language.Config.renderMatch^match): [MatchResult](#language.MatchResult), [state](#language.Config.renderMatch^state): [EditorState](#state.EditorState)) → readonly [Range](#state.Range)<[Decoration](#view.Decoration)>[]`
 
-`pos`, scanning
-direction
+Can be used to configure the way in which brackets are decorated. The default behavior is to add the `cm-matchingBracket` class for matching pairs, and `cm-nonmatchingBracket` for mismatched pairs or single brackets.
 
-`dir`. Only the
+`**[matchBrackets](#language.matchBrackets)**(  [state](#language.matchBrackets^state): [EditorState](#state.EditorState),  [pos](#language.matchBrackets^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [dir](#language.matchBrackets^dir): -1 | 1,  [config](#language.matchBrackets^config)⁠?: [Config](#language.Config) = {}  ) → [MatchResult](#language.MatchResult) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`brackets`and
+Find the matching bracket for the token at `pos`, scanning direction `dir`. Only the `brackets` and `maxScanDistance` properties are used from `config`, if given. Returns null if no bracket was found at `pos`, or a match result otherwise.
 
-`maxScanDistance`properties are used from
+#### `interface` [MatchResult](#language.MatchResult)
 
-`config`, if given. Returns null if no
-bracket was found at
+The result returned from `matchBrackets`.
 
-`pos`, or a match result otherwise.
+`**[start](#language.MatchResult.start)**: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-interface MatchResult The result returned from
+The extent of the bracket token found.
 
-`matchBrackets`.
+`**[end](#language.MatchResult.end)**⁠?: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-start `: {`from `:`number `,`to `:`number `}`The extent of the bracket token found.
+The extent of the matched token, if any was found.
 
-end `⁠?: {`from `:`number `,`to `:`number `}`The extent of the matched token, if any was found.
+`**[matched](#language.MatchResult.matched)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-matched `:`boolean Whether the tokens match. This can be false even when
+Whether the tokens match. This can be false even when `end` has a value, if that token doesn't match the opening token.
 
-`end`has
-a value, if that token doesn't match the opening token.
+`**[bracketMatchingHandle](#language.bracketMatchingHandle)**: [NodeProp](https://lezer.codemirror.net/docs/ref/#common.NodeProp)<fn([node](#language.bracketMatchingHandle^node): [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode)) → [SyntaxNode](https://lezer.codemirror.net/docs/ref/#common.SyntaxNode) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)>`
 
-bracketMatchingHandle `:`NodeProp `<`fn `(`node `:`SyntaxNode `) →`SyntaxNode `|`null `>`When larger syntax nodes, such as HTML tags, are marked as
-opening/closing, it can be a bit messy to treat the whole node as
-a matchable bracket. This node prop allows you to define, for such
-a node, a ‘handle’—the part of the node that is highlighted, and
-that the cursor must be on to activate highlighting in the first
-place.
+When larger syntax nodes, such as HTML tags, are marked as opening/closing, it can be a bit messy to treat the whole node as a matchable bracket. This node prop allows you to define, for such a node, a ‘handle’—the part of the node that is highlighted, and that the cursor must be on to activate highlighting in the first place.
 
 ### Stream Parser
 
-Stream parsers provide a way to adapt language modes written in the
-CodeMirror 5 style (see
+Stream parsers provide a way to adapt language modes written in the CodeMirror 5 style (see [@codemirror/legacy-modes](https://github.com/codemirror/legacy-modes)) to the `Language` interface.
 
-@codemirror/legacy-modes )
-to the
+#### `class` [StreamLanguage](#language.StreamLanguage)`<[State](#language.StreamLanguage^State)>` `extends [Language](#language.Language)`
 
-`Language`interface.
+A [language](#language.Language) class based on a CodeMirror 5-style [streaming parser](#language.StreamParser).
 
-class StreamLanguage `<`State `>`extends Language A
+`static **[define](#language.StreamLanguage^define)**<[State](#language.StreamLanguage^define^State)>([spec](#language.StreamLanguage^define^spec): [StreamParser](#language.StreamParser)<[State](#language.StreamLanguage^define^State)>) → [StreamLanguage](#language.StreamLanguage)<[State](#language.StreamLanguage^define^State)>`
 
-language class based on a CodeMirror
-5-style
+Define a stream language.
 
-streaming parser .
+#### `interface` [StreamParser](#language.StreamParser)`<[State](#language.StreamParser^State)>`
 
-static define `<`State `>(`spec `:`StreamParser `<`State `>) →`StreamLanguage `<`State `>`Define a stream language.
+A stream parser parses or tokenizes content from start to end, emitting tokens as it goes over it. It keeps a mutable (but copyable) object with state, in which it can store information about the current context.
 
-interface StreamParser `<`State `>`A stream parser parses or tokenizes content from start to end,
-emitting tokens as it goes over it. It keeps a mutable (but
-copyable) object with state, in which it can store information
-about the current context.
+`**[name](#language.StreamParser.name)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-name `⁠?:`string A name for this language.
+A name for this language.
 
-startState `⁠?:`fn `(`indentUnit `:`number `) →`State Produce a start state for the parser.
+`**[startState](#language.StreamParser.startState)**⁠?: fn([indentUnit](#language.StreamParser.startState^indentUnit): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [State](#language.StreamParser^State)`
 
-token `(`stream `:`StringStream `,`state `:`State `) →`string `|`null Read one token, advancing the stream past it, and returning a
-string indicating the token's style tag—either the name of one
-of the tags in
+Produce a start state for the parser.
 
-`tags`or
+`**[token](#language.StreamParser.token)**([stream](#language.StreamParser.token^stream): [StringStream](#language.StringStream), [state](#language.StreamParser.token^state): [State](#language.StreamParser^State)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`tokenTable`, or such a
-name suffixed by one or more tag
+Read one token, advancing the stream past it, and returning a string indicating the token's style tag—either the name of one of the tags in [`tags`](https://lezer.codemirror.net/docs/ref#highlight.tags) or [`tokenTable`](#language.StreamParser.tokenTable), or such a name suffixed by one or more tag [modifier](https://lezer.codemirror.net/docs/ref#highlight.Tag%5EdefineModifier) names, separated by periods. For example `"keyword"` or "`variableName.constant"`, or a space-separated set of such token types.
 
-modifier names, separated by periods. For example
+It is okay to return a zero-length token, but only if that updates the state so that the next call will return a non-empty token again.
 
-`"keyword"`or
-"
+`**[blankLine](#language.StreamParser.blankLine)**⁠?: fn([state](#language.StreamParser.blankLine^state): [State](#language.StreamParser^State), [indentUnit](#language.StreamParser.blankLine^indentUnit): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
 
-`variableName.constant"`, or a space-separated set of such
-token types.
+This notifies the parser of a blank line in the input. It can update its state here if it needs to.
 
-It is okay to return a zero-length token, but only if that
-updates the state so that the next call will return a non-empty
-token again.
+`**[copyState](#language.StreamParser.copyState)**⁠?: fn([state](#language.StreamParser.copyState^state): [State](#language.StreamParser^State)) → [State](#language.StreamParser^State)`
 
-blankLine `⁠?:`fn `(`state `:`State `,`indentUnit `:`number `)`This notifies the parser of a blank line in the input. It can
-update its state here if it needs to.
+Copy a given state. By default, a shallow object copy is done which also copies arrays held at the top level of the object.
 
-copyState `⁠?:`fn `(`state `:`State `) →`State Copy a given state. By default, a shallow object copy is done
-which also copies arrays held at the top level of the object.
+`**[indent](#language.StreamParser.indent)**⁠?: fn(  [state](#language.StreamParser.indent^state): [State](#language.StreamParser^State),  [textAfter](#language.StreamParser.indent^textAfter): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [context](#language.StreamParser.indent^context): [IndentContext](#language.IndentContext)  ) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-indent `⁠?:`fn `(`state : State , textAfter : string , context : IndentContext `) →`number `|`null Compute automatic indentation for the line that starts with the
-given state and text.
+Compute automatic indentation for the line that starts with the given state and text.
 
-languageData `⁠?:`Object `<`any `>`Default
+`**[languageData](#language.StreamParser.languageData)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<any>`
 
-language data to
-attach to this language.
+Default [language data](#state.EditorState.languageDataAt) to attach to this language.
 
-tokenTable `⁠?:`Object `<`Tag `|`readonly Tag `[]>`Extra tokens to use in this parser. When the tokenizer returns a
-token name that exists as a property in this object, the
-corresponding tags will be assigned to the token.
+`**[tokenTable](#language.StreamParser.tokenTable)**⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)<[Tag](https://lezer.codemirror.net/docs/ref/#highlight.Tag) | readonly [Tag](https://lezer.codemirror.net/docs/ref/#highlight.Tag)[]>`
 
-mergeTokens `⁠?:`boolean By default, adjacent tokens of the same type are merged in the
-output tree. Set this to false to disable that.
+Extra tokens to use in this parser. When the tokenizer returns a token name that exists as a property in this object, the corresponding tags will be assigned to the token.
 
-class StringStream Encapsulates a single line of input. Given to stream syntax code,
-which uses it to tokenize the content.
+`**[mergeTokens](#language.StreamParser.mergeTokens)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-new StringStream `(`string : string , tabSize : number , indentUnit : number , overrideIndent ⁠?: number `)`Create a stream.
+By default, adjacent tokens of the same type are merged in the output tree. Set this to false to disable that.
 
-pos `:`number The current position on the line.
+#### `class` [StringStream](#language.StringStream)
 
-start `:`number The start position of the current token.
+Encapsulates a single line of input. Given to stream syntax code, which uses it to tokenize the content.
 
-string `:`string The line.
+`new **[StringStream](#language.StringStream.constructor)**(  [string](#language.StringStream.constructor^string): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [tabSize](#language.StringStream.constructor^tabSize): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [indentUnit](#language.StringStream.constructor^indentUnit): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [overrideIndent](#language.StringStream.constructor^overrideIndent)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )`
 
-indentUnit `:`number The current indent unit size.
+Create a stream.
 
-eol `() →`boolean True if we are at the end of the line.
+`**[pos](#language.StringStream.pos)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-sol `() →`boolean True if we are at the start of the line.
+The current position on the line.
 
-peek `() →`string `|`undefined Get the next code unit after the current position, or undefined
-if we're at the end of the line.
+`**[start](#language.StringStream.start)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-next `() →`string `|`undefined Read the next code unit and advance
+The start position of the current token.
 
-`this.pos`.
+`**[string](#language.StringStream.string)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-eat `(`match `:`string `|`RegExp `|`fn `(`ch `:`string `) →`boolean `) →`string `|`undefined Match the next character against the given string, regular
-expression, or predicate. Consume and return it if it matches.
+The line.
 
-eatWhile `(`match `:`string `|`RegExp `|`fn `(`ch `:`string `) →`boolean `) →`boolean Continue matching characters that match the given string,
-regular expression, or predicate function. Return true if any
-characters were consumed.
+`**[indentUnit](#language.StringStream.indentUnit)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-eatSpace `() →`boolean Consume whitespace ahead of
+The current indent unit size.
 
-`this.pos`. Return true if any was
-found.
+`**[eol](#language.StringStream.eol)**() → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-skipToEnd `()`Move to the end of the line.
+True if we are at the end of the line.
 
-skipTo `(`ch `:`string `) →`boolean `|`undefined Move to directly before the given character, if found on the
-current line.
+`**[sol](#language.StringStream.sol)**() → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-backUp `(`n `:`number `)`Move back
+True if we are at the start of the line.
 
-`n`characters.
+`**[peek](#language.StringStream.peek)**() → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-column `() →`number Get the column position at
+Get the next code unit after the current position, or undefined if we're at the end of the line.
 
-`this.pos`.
+`**[next](#language.StringStream.next)**() → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-indentation `() →`number Get the indentation column of the current line.
+Read the next code unit and advance `this.pos`.
 
-match `(`pattern : string | RegExp , consume ⁠?: boolean , caseInsensitive ⁠?: boolean `) →`boolean `|`RegExpMatchArray `|`null Match the input against the given string or regular expression
-(which should start with a
+`**[eat](#language.StringStream.eat)**([match](#language.StringStream.eat^match): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp) | fn([ch](#language.StringStream.eat^match^ch): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-`^`). Return true or the regexp match
-if it matches.
+Match the next character against the given string, regular expression, or predicate. Consume and return it if it matches.
 
-Unless
+`**[eatWhile](#language.StringStream.eatWhile)**([match](#language.StringStream.eatWhile^match): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp) | fn([ch](#language.StringStream.eatWhile^match^ch): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`consume`is set to
+Continue matching characters that match the given string, regular expression, or predicate function. Return true if any characters were consumed.
 
-`false`, this will move
+`**[eatSpace](#language.StringStream.eatSpace)**() → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`this.pos`past the matched text.
+Consume whitespace ahead of `this.pos`. Return true if any was found.
 
-When matching a string
+`**[skipToEnd](#language.StringStream.skipToEnd)**()`
 
-`caseInsensitive`can be set to true to
-make the match case-insensitive.
+Move to the end of the line.
 
-current `() →`string Get the current token.
+`**[skipTo](#language.StringStream.skipTo)**([ch](#language.StringStream.skipTo^ch): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [undefined](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined)`
 
-@codemirror/ commands This package exports a collection of generic editing commands, along
-with key bindings for a lot of them.
+Move to directly before the given character, if found on the current line.
+
+`**[backUp](#language.StringStream.backUp)**([n](#language.StringStream.backUp^n): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
+
+Move back `n` characters.
+
+`**[column](#language.StringStream.column)**() → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Get the column position at `this.pos`.
+
+`**[indentation](#language.StringStream.indentation)**() → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Get the indentation column of the current line.
+
+`**[match](#language.StringStream.match)**(  [pattern](#language.StringStream.match^pattern): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp),  [consume](#language.StringStream.match^consume)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [caseInsensitive](#language.StringStream.match^caseInsensitive)⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [RegExpMatchArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
+
+Match the input against the given string or regular expression (which should start with a `^`). Return true or the regexp match if it matches.
+
+Unless `consume` is set to `false`, this will move `this.pos` past the matched text.
+
+When matching a string `caseInsensitive` can be set to true to make the match case-insensitive.
+
+`**[current](#language.StringStream.current)**() → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+Get the current token.
+
+## [@codemirror/commands](#commands)
+
+This package exports a collection of generic editing commands, along with key bindings for a lot of them.
 
 ### Keymaps
 
-standardKeymap `:`readonly KeyBinding `[]`An array of key bindings closely sticking to platform-standard or
-widely used bindings. (This includes the bindings from
+`**[standardKeymap](#commands.standardKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-`emacsStyleKeymap`, with their
+An array of key bindings closely sticking to platform-standard or widely used bindings. (This includes the bindings from [`emacsStyleKeymap`](#commands.emacsStyleKeymap), with their `key` property changed to `mac`.)
 
-`key`property changed to
+- ArrowLeft: [`cursorCharLeft`](#commands.cursorCharLeft) ([`selectCharLeft`](#commands.selectCharLeft) with Shift)
+- ArrowRight: [`cursorCharRight`](#commands.cursorCharRight) ([`selectCharRight`](#commands.selectCharRight) with Shift)
+- Ctrl-ArrowLeft (Alt-ArrowLeft on macOS): [`cursorGroupLeft`](#commands.cursorGroupLeft) ([`selectGroupLeft`](#commands.selectGroupLeft) with Shift)
+- Ctrl-ArrowRight (Alt-ArrowRight on macOS): [`cursorGroupRight`](#commands.cursorGroupRight) ([`selectGroupRight`](#commands.selectGroupRight) with Shift)
+- Cmd-ArrowLeft (on macOS): [`cursorLineStart`](#commands.cursorLineStart) ([`selectLineStart`](#commands.selectLineStart) with Shift)
+- Cmd-ArrowRight (on macOS): [`cursorLineEnd`](#commands.cursorLineEnd) ([`selectLineEnd`](#commands.selectLineEnd) with Shift)
+- ArrowUp: [`cursorLineUp`](#commands.cursorLineUp) ([`selectLineUp`](#commands.selectLineUp) with Shift)
+- ArrowDown: [`cursorLineDown`](#commands.cursorLineDown) ([`selectLineDown`](#commands.selectLineDown) with Shift)
+- Cmd-ArrowUp (on macOS): [`cursorDocStart`](#commands.cursorDocStart) ([`selectDocStart`](#commands.selectDocStart) with Shift)
+- Cmd-ArrowDown (on macOS): [`cursorDocEnd`](#commands.cursorDocEnd) ([`selectDocEnd`](#commands.selectDocEnd) with Shift)
+- Ctrl-ArrowUp (on macOS): [`cursorPageUp`](#commands.cursorPageUp) ([`selectPageUp`](#commands.selectPageUp) with Shift)
+- Ctrl-ArrowDown (on macOS): [`cursorPageDown`](#commands.cursorPageDown) ([`selectPageDown`](#commands.selectPageDown) with Shift)
+- PageUp: [`cursorPageUp`](#commands.cursorPageUp) ([`selectPageUp`](#commands.selectPageUp) with Shift)
+- PageDown: [`cursorPageDown`](#commands.cursorPageDown) ([`selectPageDown`](#commands.selectPageDown) with Shift)
+- Home: [`cursorLineBoundaryBackward`](#commands.cursorLineBoundaryBackward) ([`selectLineBoundaryBackward`](#commands.selectLineBoundaryBackward) with Shift)
+- End: [`cursorLineBoundaryForward`](#commands.cursorLineBoundaryForward) ([`selectLineBoundaryForward`](#commands.selectLineBoundaryForward) with Shift)
+- Ctrl-Home (Cmd-Home on macOS): [`cursorDocStart`](#commands.cursorDocStart) ([`selectDocStart`](#commands.selectDocStart) with Shift)
+- Ctrl-End (Cmd-Home on macOS): [`cursorDocEnd`](#commands.cursorDocEnd) ([`selectDocEnd`](#commands.selectDocEnd) with Shift)
+- Enter and Shift-Enter: [`insertNewlineAndIndent`](#commands.insertNewlineAndIndent)
+- Ctrl-a (Cmd-a on macOS): [`selectAll`](#commands.selectAll)
+- Backspace: [`deleteCharBackward`](#commands.deleteCharBackward)
+- Delete: [`deleteCharForward`](#commands.deleteCharForward)
+- Ctrl-Backspace (Alt-Backspace on macOS): [`deleteGroupBackward`](#commands.deleteGroupBackward)
+- Ctrl-Delete (Alt-Delete on macOS): [`deleteGroupForward`](#commands.deleteGroupForward)
+- Cmd-Backspace (macOS): [`deleteLineBoundaryBackward`](#commands.deleteLineBoundaryBackward).
+- Cmd-Delete (macOS): [`deleteLineBoundaryForward`](#commands.deleteLineBoundaryForward).
 
-`mac`.)
+`**[defaultKeymap](#commands.defaultKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-- ArrowLeft:
-`cursorCharLeft`- (
-`selectCharLeft`- with Shift)
-- ArrowRight:
-`cursorCharRight`- (
-`selectCharRight`- with Shift)
-- Ctrl-ArrowLeft (Alt-ArrowLeft on macOS):
-`cursorGroupLeft`- (
-`selectGroupLeft`- with Shift)
-- Ctrl-ArrowRight (Alt-ArrowRight on macOS):
-`cursorGroupRight`- (
-`selectGroupRight`- with Shift)
-- Cmd-ArrowLeft (on macOS):
-`cursorLineStart`- (
-`selectLineStart`- with Shift)
-- Cmd-ArrowRight (on macOS):
-`cursorLineEnd`- (
-`selectLineEnd`- with Shift)
-- ArrowUp:
-`cursorLineUp`- (
-`selectLineUp`- with Shift)
-- ArrowDown:
-`cursorLineDown`- (
-`selectLineDown`- with Shift)
-- Cmd-ArrowUp (on macOS):
-`cursorDocStart`- (
-`selectDocStart`- with Shift)
-- Cmd-ArrowDown (on macOS):
-`cursorDocEnd`- (
-`selectDocEnd`- with Shift)
-- Ctrl-ArrowUp (on macOS):
-`cursorPageUp`- (
-`selectPageUp`- with Shift)
-- Ctrl-ArrowDown (on macOS):
-`cursorPageDown`- (
-`selectPageDown`- with Shift)
-- PageUp:
-`cursorPageUp`- (
-`selectPageUp`- with Shift)
-- PageDown:
-`cursorPageDown`- (
-`selectPageDown`- with Shift)
-- Home:
-`cursorLineBoundaryBackward`- (
-`selectLineBoundaryBackward`- with Shift)
-- End:
-`cursorLineBoundaryForward`- (
-`selectLineBoundaryForward`- with Shift)
-- Ctrl-Home (Cmd-Home on macOS):
-`cursorDocStart`- (
-`selectDocStart`- with Shift)
-- Ctrl-End (Cmd-Home on macOS):
-`cursorDocEnd`- (
-`selectDocEnd`- with Shift)
-- Enter and Shift-Enter:
-`insertNewlineAndIndent`- Ctrl-a (Cmd-a on macOS):
-`selectAll`- Backspace:
-`deleteCharBackward`- Delete:
-`deleteCharForward`- Ctrl-Backspace (Alt-Backspace on macOS):
-`deleteGroupBackward`- Ctrl-Delete (Alt-Delete on macOS):
-`deleteGroupForward`- Cmd-Backspace (macOS):
-`deleteLineBoundaryBackward`- .
-- Cmd-Delete (macOS):
-`deleteLineBoundaryForward`- .
-defaultKeymap `:`readonly KeyBinding `[]`The default keymap. Includes all bindings from
+The default keymap. Includes all bindings from [`standardKeymap`](#commands.standardKeymap) plus the following:
 
-`standardKeymap`plus the following:
+- Alt-ArrowLeft (Ctrl-ArrowLeft on macOS): [`cursorSyntaxLeft`](#commands.cursorSyntaxLeft) ([`selectSyntaxLeft`](#commands.selectSyntaxLeft) with Shift)
+- Alt-ArrowRight (Ctrl-ArrowRight on macOS): [`cursorSyntaxRight`](#commands.cursorSyntaxRight) ([`selectSyntaxRight`](#commands.selectSyntaxRight) with Shift)
+- Alt-ArrowUp: [`moveLineUp`](#commands.moveLineUp)
+- Alt-ArrowDown: [`moveLineDown`](#commands.moveLineDown)
+- Shift-Alt-ArrowUp: [`copyLineUp`](#commands.copyLineUp)
+- Shift-Alt-ArrowDown: [`copyLineDown`](#commands.copyLineDown)
+- Escape: [`simplifySelection`](#commands.simplifySelection)
+- Ctrl-Enter (Cmd-Enter on macOS): [`insertBlankLine`](#commands.insertBlankLine)
+- Alt-l (Ctrl-l on macOS): [`selectLine`](#commands.selectLine)
+- Ctrl-i (Cmd-i on macOS): [`selectParentSyntax`](#commands.selectParentSyntax)
+- Ctrl-\[ (Cmd-\[ on macOS): [`indentLess`](#commands.indentLess)
+- Ctrl-\] (Cmd-\] on macOS): [`indentMore`](#commands.indentMore)
+- Ctrl-Alt-\\ (Cmd-Alt-\\ on macOS): [`indentSelection`](#commands.indentSelection)
+- Shift-Ctrl-k (Shift-Cmd-k on macOS): [`deleteLine`](#commands.deleteLine)
+- Shift-Ctrl-\\ (Shift-Cmd-\\ on macOS): [`cursorMatchingBracket`](#commands.cursorMatchingBracket)
+- Ctrl-/ (Cmd-/ on macOS): [`toggleComment`](#commands.toggleComment).
+- Shift-Alt-a: [`toggleBlockComment`](#commands.toggleBlockComment).
+- Ctrl-m (Alt-Shift-m on macOS): [`toggleTabFocusMode`](#commands.toggleTabFocusMode).
 
-- Alt-ArrowLeft (Ctrl-ArrowLeft on macOS):
-`cursorSyntaxLeft`- (
-`selectSyntaxLeft`- with Shift)
-- Alt-ArrowRight (Ctrl-ArrowRight on macOS):
-`cursorSyntaxRight`- (
-`selectSyntaxRight`- with Shift)
-- Alt-ArrowUp:
-`moveLineUp`- Alt-ArrowDown:
-`moveLineDown`- Shift-Alt-ArrowUp:
-`copyLineUp`- Shift-Alt-ArrowDown:
-`copyLineDown`- Escape:
-`simplifySelection`- Ctrl-Enter (Cmd-Enter on macOS):
-`insertBlankLine`- Alt-l (Ctrl-l on macOS):
-`selectLine`- Ctrl-i (Cmd-i on macOS):
-`selectParentSyntax`- Ctrl-[ (Cmd-[ on macOS):
-`indentLess`- Ctrl-] (Cmd-] on macOS):
-`indentMore`- Ctrl-Alt-\ (Cmd-Alt-\ on macOS):
-`indentSelection`- Shift-Ctrl-k (Shift-Cmd-k on macOS):
-`deleteLine`- Shift-Ctrl-\ (Shift-Cmd-\ on macOS):
-`cursorMatchingBracket`- Ctrl-/ (Cmd-/ on macOS):
-`toggleComment`- .
-- Shift-Alt-a:
-`toggleBlockComment`- .
-- Ctrl-m (Alt-Shift-m on macOS):
-`toggleTabFocusMode`- .
-emacsStyleKeymap `:`readonly KeyBinding `[]`Array of key bindings containing the Emacs-style bindings that are
-available on macOS by default.
+`**[emacsStyleKeymap](#commands.emacsStyleKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-- Ctrl-b:
-`cursorCharLeft`- (
-`selectCharLeft`- with Shift)
-- Ctrl-f:
-`cursorCharRight`- (
-`selectCharRight`- with Shift)
-- Ctrl-p:
-`cursorLineUp`- (
-`selectLineUp`- with Shift)
-- Ctrl-n:
-`cursorLineDown`- (
-`selectLineDown`- with Shift)
-- Ctrl-a:
-`cursorLineStart`- (
-`selectLineStart`- with Shift)
-- Ctrl-e:
-`cursorLineEnd`- (
-`selectLineEnd`- with Shift)
-- Ctrl-d:
-`deleteCharForward`- Ctrl-h:
-`deleteCharBackward`- Ctrl-k:
-`deleteToLineEnd`- Ctrl-Alt-h:
-`deleteGroupBackward`- Ctrl-o:
-`splitLine`- Ctrl-t:
-`transposeChars`- Ctrl-v:
-`cursorPageDown`- Alt-v:
-`cursorPageUp`indentWithTab `:`KeyBinding A binding that binds Tab to
+Array of key bindings containing the Emacs-style bindings that are available on macOS by default.
 
-`indentMore`and
-Shift-Tab to
+- Ctrl-b: [`cursorCharLeft`](#commands.cursorCharLeft) ([`selectCharLeft`](#commands.selectCharLeft) with Shift)
+- Ctrl-f: [`cursorCharRight`](#commands.cursorCharRight) ([`selectCharRight`](#commands.selectCharRight) with Shift)
+- Ctrl-p: [`cursorLineUp`](#commands.cursorLineUp) ([`selectLineUp`](#commands.selectLineUp) with Shift)
+- Ctrl-n: [`cursorLineDown`](#commands.cursorLineDown) ([`selectLineDown`](#commands.selectLineDown) with Shift)
+- Ctrl-a: [`cursorLineStart`](#commands.cursorLineStart) ([`selectLineStart`](#commands.selectLineStart) with Shift)
+- Ctrl-e: [`cursorLineEnd`](#commands.cursorLineEnd) ([`selectLineEnd`](#commands.selectLineEnd) with Shift)
+- Ctrl-d: [`deleteCharForward`](#commands.deleteCharForward)
+- Ctrl-h: [`deleteCharBackward`](#commands.deleteCharBackward)
+- Ctrl-k: [`deleteToLineEnd`](#commands.deleteToLineEnd)
+- Ctrl-Alt-h: [`deleteGroupBackward`](#commands.deleteGroupBackward)
+- Ctrl-o: [`splitLine`](#commands.splitLine)
+- Ctrl-t: [`transposeChars`](#commands.transposeChars)
+- Ctrl-v: [`cursorPageDown`](#commands.cursorPageDown)
+- Alt-v: [`cursorPageUp`](#commands.cursorPageUp)
 
-`indentLess`.
-Please see the
+`**[indentWithTab](#commands.indentWithTab)**: [KeyBinding](#view.KeyBinding)`
 
-Tab example before using
-this.
+A binding that binds Tab to [`indentMore`](#commands.indentMore) and Shift-Tab to [`indentLess`](#commands.indentLess). Please see the [Tab example](../../examples/tab/) before using this.
 
 ### Selection
 
-simplifySelection `:`StateCommand Simplify the current selection. When multiple ranges are selected,
-reduce it to its main range. Otherwise, if the selection is
-non-empty, convert it to a cursor selection.
+`**[simplifySelection](#commands.simplifySelection)**: [StateCommand](#state.StateCommand)`
+
+Simplify the current selection. When multiple ranges are selected, reduce it to its main range. Otherwise, if the selection is non-empty, convert it to a cursor selection.
 
 #### By character
 
-cursorCharLeft `:`Command Move the selection one character to the left (which is backward in
-left-to-right text, forward in right-to-left text).
+`**[cursorCharLeft](#commands.cursorCharLeft)**: [Command](#view.Command)`
 
-selectCharLeft `:`Command Move the selection head one character to the left, while leaving
-the anchor in place.
+Move the selection one character to the left (which is backward in left-to-right text, forward in right-to-left text).
 
-cursorCharRight `:`Command Move the selection one character to the right.
+`**[selectCharLeft](#commands.selectCharLeft)**: [Command](#view.Command)`
 
-selectCharRight `:`Command Move the selection head one character to the right.
+Move the selection head one character to the left, while leaving the anchor in place.
 
-cursorCharForward `:`Command Move the selection one character forward.
+`**[cursorCharRight](#commands.cursorCharRight)**: [Command](#view.Command)`
 
-selectCharForward `:`Command Move the selection head one character forward.
+Move the selection one character to the right.
 
-cursorCharBackward `:`Command Move the selection one character backward.
+`**[selectCharRight](#commands.selectCharRight)**: [Command](#view.Command)`
 
-selectCharBackward `:`Command Move the selection head one character backward.
+Move the selection head one character to the right.
 
-cursorCharForwardLogical `:`StateCommand Move the selection one character forward, in logical
-(non-text-direction-aware) string index order.
+`**[cursorCharForward](#commands.cursorCharForward)**: [Command](#view.Command)`
 
-selectCharForwardLogical `:`StateCommand Move the selection head one character forward by logical
-(non-direction aware) string index order.
+Move the selection one character forward.
 
-cursorCharBackwardLogical `:`StateCommand Move the selection one character backward, in logical string index
-order.
+`**[selectCharForward](#commands.selectCharForward)**: [Command](#view.Command)`
 
-selectCharBackwardLogical `:`StateCommand Move the selection head one character backward by logical string
-index order.
+Move the selection head one character forward.
+
+`**[cursorCharBackward](#commands.cursorCharBackward)**: [Command](#view.Command)`
+
+Move the selection one character backward.
+
+`**[selectCharBackward](#commands.selectCharBackward)**: [Command](#view.Command)`
+
+Move the selection head one character backward.
+
+`**[cursorCharForwardLogical](#commands.cursorCharForwardLogical)**: [StateCommand](#state.StateCommand)`
+
+Move the selection one character forward, in logical (non-text-direction-aware) string index order.
+
+`**[selectCharForwardLogical](#commands.selectCharForwardLogical)**: [StateCommand](#state.StateCommand)`
+
+Move the selection head one character forward by logical (non-direction aware) string index order.
+
+`**[cursorCharBackwardLogical](#commands.cursorCharBackwardLogical)**: [StateCommand](#state.StateCommand)`
+
+Move the selection one character backward, in logical string index order.
+
+`**[selectCharBackwardLogical](#commands.selectCharBackwardLogical)**: [StateCommand](#state.StateCommand)`
+
+Move the selection head one character backward by logical string index order.
 
 #### By group
 
-cursorGroupLeft `:`Command Move the selection to the left across one group of word or
-non-word (but also non-space) characters.
+`**[cursorGroupLeft](#commands.cursorGroupLeft)**: [Command](#view.Command)`
 
-selectGroupLeft `:`Command Move the selection head one
+Move the selection to the left across one group of word or non-word (but also non-space) characters.
 
-group to
-the left.
+`**[selectGroupLeft](#commands.selectGroupLeft)**: [Command](#view.Command)`
 
-cursorGroupRight `:`Command Move the selection one group to the right.
+Move the selection head one [group](#commands.cursorGroupLeft) to the left.
 
-selectGroupRight `:`Command Move the selection head one group to the right.
+`**[cursorGroupRight](#commands.cursorGroupRight)**: [Command](#view.Command)`
 
-cursorGroupForward `:`Command Move the selection one group forward.
+Move the selection one group to the right.
 
-selectGroupForward `:`Command Move the selection head one group forward.
+`**[selectGroupRight](#commands.selectGroupRight)**: [Command](#view.Command)`
 
-cursorGroupBackward `:`Command Move the selection one group backward.
+Move the selection head one group to the right.
 
-selectGroupBackward `:`Command Move the selection head one group backward.
+`**[cursorGroupForward](#commands.cursorGroupForward)**: [Command](#view.Command)`
 
-cursorGroupForwardWin `:`Command Move the cursor one group forward in the default Windows style,
-where it moves to the start of the next group.
+Move the selection one group forward.
 
-selectGroupForwardWin `:`Command Move the selection head one group forward in the default Windows
-style, skipping to the start of the next group.
+`**[selectGroupForward](#commands.selectGroupForward)**: [Command](#view.Command)`
 
-cursorSubwordForward `:`Command Move the selection one group or camel-case subword forward.
+Move the selection head one group forward.
 
-selectSubwordForward `:`Command Move the selection head one group or camel-case subword forward.
+`**[cursorGroupBackward](#commands.cursorGroupBackward)**: [Command](#view.Command)`
 
-cursorSubwordBackward `:`Command Move the selection one group or camel-case subword backward.
+Move the selection one group backward.
 
-selectSubwordBackward `:`Command Move the selection head one group or subword backward.
+`**[selectGroupBackward](#commands.selectGroupBackward)**: [Command](#view.Command)`
+
+Move the selection head one group backward.
+
+`**[cursorGroupForwardWin](#commands.cursorGroupForwardWin)**: [Command](#view.Command)`
+
+Move the cursor one group forward in the default Windows style, where it moves to the start of the next group.
+
+`**[selectGroupForwardWin](#commands.selectGroupForwardWin)**: [Command](#view.Command)`
+
+Move the selection head one group forward in the default Windows style, skipping to the start of the next group.
+
+`**[cursorSubwordForward](#commands.cursorSubwordForward)**: [Command](#view.Command)`
+
+Move the selection one group or camel-case subword forward.
+
+`**[selectSubwordForward](#commands.selectSubwordForward)**: [Command](#view.Command)`
+
+Move the selection head one group or camel-case subword forward.
+
+`**[cursorSubwordBackward](#commands.cursorSubwordBackward)**: [Command](#view.Command)`
+
+Move the selection one group or camel-case subword backward.
+
+`**[selectSubwordBackward](#commands.selectSubwordBackward)**: [Command](#view.Command)`
+
+Move the selection head one group or subword backward.
 
 #### Vertical motion
 
-cursorLineUp `:`Command Move the selection one line up.
+`**[cursorLineUp](#commands.cursorLineUp)**: [Command](#view.Command)`
 
-selectLineUp `:`Command Move the selection head one line up.
+Move the selection one line up.
 
-cursorLineDown `:`Command Move the selection one line down.
+`**[selectLineUp](#commands.selectLineUp)**: [Command](#view.Command)`
 
-selectLineDown `:`Command Move the selection head one line down.
+Move the selection head one line up.
 
-cursorPageUp `:`Command Move the selection one page up.
+`**[cursorLineDown](#commands.cursorLineDown)**: [Command](#view.Command)`
 
-selectPageUp `:`Command Move the selection head one page up.
+Move the selection one line down.
 
-cursorPageDown `:`Command Move the selection one page down.
+`**[selectLineDown](#commands.selectLineDown)**: [Command](#view.Command)`
 
-selectPageDown `:`Command Move the selection head one page down.
+Move the selection head one line down.
+
+`**[cursorPageUp](#commands.cursorPageUp)**: [Command](#view.Command)`
+
+Move the selection one page up.
+
+`**[selectPageUp](#commands.selectPageUp)**: [Command](#view.Command)`
+
+Move the selection head one page up.
+
+`**[cursorPageDown](#commands.cursorPageDown)**: [Command](#view.Command)`
+
+Move the selection one page down.
+
+`**[selectPageDown](#commands.selectPageDown)**: [Command](#view.Command)`
+
+Move the selection head one page down.
 
 #### By line boundary
 
-cursorLineBoundaryForward `:`Command Move the selection to the next line wrap point, or to the end of
-the line if there isn't one left on this line.
+`**[cursorLineBoundaryForward](#commands.cursorLineBoundaryForward)**: [Command](#view.Command)`
 
-selectLineBoundaryForward `:`Command Move the selection head to the next line boundary.
+Move the selection to the next line wrap point, or to the end of the line if there isn't one left on this line.
 
-cursorLineBoundaryBackward `:`Command Move the selection to previous line wrap point, or failing that to
-the start of the line. If the line is indented, and the cursor
-isn't already at the end of the indentation, this will move to the
-end of the indentation instead of the start of the line.
+`**[selectLineBoundaryForward](#commands.selectLineBoundaryForward)**: [Command](#view.Command)`
 
-selectLineBoundaryBackward `:`Command Move the selection head to the previous line boundary.
+Move the selection head to the next line boundary.
 
-cursorLineBoundaryLeft `:`Command Move the selection one line wrap point to the left.
+`**[cursorLineBoundaryBackward](#commands.cursorLineBoundaryBackward)**: [Command](#view.Command)`
 
-selectLineBoundaryLeft `:`Command Move the selection head one line boundary to the left.
+Move the selection to previous line wrap point, or failing that to the start of the line. If the line is indented, and the cursor isn't already at the end of the indentation, this will move to the end of the indentation instead of the start of the line.
 
-cursorLineBoundaryRight `:`Command Move the selection one line wrap point to the right.
+`**[selectLineBoundaryBackward](#commands.selectLineBoundaryBackward)**: [Command](#view.Command)`
 
-selectLineBoundaryRight `:`Command Move the selection head one line boundary to the right.
+Move the selection head to the previous line boundary.
 
-cursorLineStart `:`Command Move the selection to the start of the line.
+`**[cursorLineBoundaryLeft](#commands.cursorLineBoundaryLeft)**: [Command](#view.Command)`
 
-selectLineStart `:`Command Move the selection head to the start of the line.
+Move the selection one line wrap point to the left.
 
-cursorLineEnd `:`Command Move the selection to the end of the line.
+`**[selectLineBoundaryLeft](#commands.selectLineBoundaryLeft)**: [Command](#view.Command)`
 
-selectLineEnd `:`Command Move the selection head to the end of the line.
+Move the selection head one line boundary to the left.
 
-selectLine `:`StateCommand Expand the selection to cover entire lines.
+`**[cursorLineBoundaryRight](#commands.cursorLineBoundaryRight)**: [Command](#view.Command)`
+
+Move the selection one line wrap point to the right.
+
+`**[selectLineBoundaryRight](#commands.selectLineBoundaryRight)**: [Command](#view.Command)`
+
+Move the selection head one line boundary to the right.
+
+`**[cursorLineStart](#commands.cursorLineStart)**: [Command](#view.Command)`
+
+Move the selection to the start of the line.
+
+`**[selectLineStart](#commands.selectLineStart)**: [Command](#view.Command)`
+
+Move the selection head to the start of the line.
+
+`**[cursorLineEnd](#commands.cursorLineEnd)**: [Command](#view.Command)`
+
+Move the selection to the end of the line.
+
+`**[selectLineEnd](#commands.selectLineEnd)**: [Command](#view.Command)`
+
+Move the selection head to the end of the line.
+
+`**[selectLine](#commands.selectLine)**: [StateCommand](#state.StateCommand)`
+
+Expand the selection to cover entire lines.
 
 #### By document boundary
 
-cursorDocStart `:`StateCommand Move the selection to the start of the document.
+`**[cursorDocStart](#commands.cursorDocStart)**: [StateCommand](#state.StateCommand)`
 
-selectDocStart `:`StateCommand Move the selection head to the start of the document.
+Move the selection to the start of the document.
 
-cursorDocEnd `:`StateCommand Move the selection to the end of the document.
+`**[selectDocStart](#commands.selectDocStart)**: [StateCommand](#state.StateCommand)`
 
-selectDocEnd `:`StateCommand Move the selection head to the end of the document.
+Move the selection head to the start of the document.
 
-selectAll `:`StateCommand Select the entire document.
+`**[cursorDocEnd](#commands.cursorDocEnd)**: [StateCommand](#state.StateCommand)`
+
+Move the selection to the end of the document.
+
+`**[selectDocEnd](#commands.selectDocEnd)**: [StateCommand](#state.StateCommand)`
+
+Move the selection head to the end of the document.
+
+`**[selectAll](#commands.selectAll)**: [StateCommand](#state.StateCommand)`
+
+Select the entire document.
 
 #### By syntax
 
-cursorSyntaxLeft `:`Command Move the cursor over the next syntactic element to the left.
+`**[cursorSyntaxLeft](#commands.cursorSyntaxLeft)**: [Command](#view.Command)`
 
-selectSyntaxLeft `:`Command Move the selection head over the next syntactic element to the left.
+Move the cursor over the next syntactic element to the left.
 
-cursorSyntaxRight `:`Command Move the cursor over the next syntactic element to the right.
+`**[selectSyntaxLeft](#commands.selectSyntaxLeft)**: [Command](#view.Command)`
 
-selectSyntaxRight `:`Command Move the selection head over the next syntactic element to the right.
+Move the selection head over the next syntactic element to the left.
 
-selectParentSyntax `:`StateCommand Select the next syntactic construct that is larger than the
-selection. Note that this will only work insofar as the language
+`**[cursorSyntaxRight](#commands.cursorSyntaxRight)**: [Command](#view.Command)`
 
-provider you use builds up a full
-syntax tree.
+Move the cursor over the next syntactic element to the right.
 
-cursorMatchingBracket `:`StateCommand Move the selection to the bracket matching the one it is currently
-on, if any.
+`**[selectSyntaxRight](#commands.selectSyntaxRight)**: [Command](#view.Command)`
 
-selectMatchingBracket `:`StateCommand Extend the selection to the bracket matching the one the selection
-head is currently on, if any.
+Move the selection head over the next syntactic element to the right.
+
+`**[selectParentSyntax](#commands.selectParentSyntax)**: [StateCommand](#state.StateCommand)`
+
+Select the next syntactic construct that is larger than the selection. Note that this will only work insofar as the language [provider](#language.language) you use builds up a full syntax tree.
+
+`**[cursorMatchingBracket](#commands.cursorMatchingBracket)**: [StateCommand](#state.StateCommand)`
+
+Move the selection to the bracket matching the one it is currently on, if any.
+
+`**[selectMatchingBracket](#commands.selectMatchingBracket)**: [StateCommand](#state.StateCommand)`
+
+Extend the selection to the bracket matching the one the selection head is currently on, if any.
 
 ### Deletion
 
-deleteCharBackward `:`Command Delete the selection, or, for cursor selections, the character or
-indentation unit before the cursor.
+`**[deleteCharBackward](#commands.deleteCharBackward)**: [Command](#view.Command)`
 
-deleteCharBackwardStrict `:`Command Delete the selection or the character before the cursor. Does not
-implement any extended behavior like deleting whole indentation
-units in one go.
+Delete the selection, or, for cursor selections, the character or indentation unit before the cursor.
 
-deleteCharForward `:`Command Delete the selection or the character after the cursor.
+`**[deleteCharBackwardStrict](#commands.deleteCharBackwardStrict)**: [Command](#view.Command)`
 
-deleteGroupBackward `:`StateCommand Delete the selection or backward until the end of the next
+Delete the selection or the character before the cursor. Does not implement any extended behavior like deleting whole indentation units in one go.
 
-group , only skipping groups of
-whitespace when they consist of a single space.
+`**[deleteCharForward](#commands.deleteCharForward)**: [Command](#view.Command)`
 
-deleteGroupForward `:`StateCommand Delete the selection or forward until the end of the next group.
+Delete the selection or the character after the cursor.
 
-deleteToLineStart `:`Command Delete the selection, or, if it is a cursor selection, delete to
-the start of the line. If the cursor is directly at the start of the
-line, delete the line break before it.
+`**[deleteGroupBackward](#commands.deleteGroupBackward)**: [StateCommand](#state.StateCommand)`
 
-deleteToLineEnd `:`Command Delete the selection, or, if it is a cursor selection, delete to
-the end of the line. If the cursor is directly at the end of the
-line, delete the line break after it.
+Delete the selection or backward until the end of the next [group](#view.EditorView.moveByGroup), only skipping groups of whitespace when they consist of a single space.
 
-deleteLineBoundaryBackward `:`Command Delete the selection, or, if it is a cursor selection, delete to
-the start of the line or the next line wrap before the cursor.
+`**[deleteGroupForward](#commands.deleteGroupForward)**: [StateCommand](#state.StateCommand)`
 
-deleteLineBoundaryForward `:`Command Delete the selection, or, if it is a cursor selection, delete to
-the end of the line or the next line wrap after the cursor.
+Delete the selection or forward until the end of the next group.
 
-deleteTrailingWhitespace `:`StateCommand Delete all whitespace directly before a line end from the
-document.
+`**[deleteToLineStart](#commands.deleteToLineStart)**: [Command](#view.Command)`
+
+Delete the selection, or, if it is a cursor selection, delete to the start of the line. If the cursor is directly at the start of the line, delete the line break before it.
+
+`**[deleteToLineEnd](#commands.deleteToLineEnd)**: [Command](#view.Command)`
+
+Delete the selection, or, if it is a cursor selection, delete to the end of the line. If the cursor is directly at the end of the line, delete the line break after it.
+
+`**[deleteLineBoundaryBackward](#commands.deleteLineBoundaryBackward)**: [Command](#view.Command)`
+
+Delete the selection, or, if it is a cursor selection, delete to the start of the line or the next line wrap before the cursor.
+
+`**[deleteLineBoundaryForward](#commands.deleteLineBoundaryForward)**: [Command](#view.Command)`
+
+Delete the selection, or, if it is a cursor selection, delete to the end of the line or the next line wrap after the cursor.
+
+`**[deleteTrailingWhitespace](#commands.deleteTrailingWhitespace)**: [StateCommand](#state.StateCommand)`
+
+Delete all whitespace directly before a line end from the document.
 
 ### Line manipulation
 
-splitLine `:`StateCommand Replace each selection range with a line break, leaving the cursor
-on the line before the break.
+`**[splitLine](#commands.splitLine)**: [StateCommand](#state.StateCommand)`
 
-moveLineUp `:`StateCommand Move the selected lines up one line.
+Replace each selection range with a line break, leaving the cursor on the line before the break.
 
-moveLineDown `:`StateCommand Move the selected lines down one line.
+`**[moveLineUp](#commands.moveLineUp)**: [StateCommand](#state.StateCommand)`
 
-copyLineUp `:`StateCommand Create a copy of the selected lines. Keep the selection in the top copy.
+Move the selected lines up one line.
 
-copyLineDown `:`StateCommand Create a copy of the selected lines. Keep the selection in the bottom copy.
+`**[moveLineDown](#commands.moveLineDown)**: [StateCommand](#state.StateCommand)`
 
-deleteLine `:`Command Delete selected lines.
+Move the selected lines down one line.
+
+`**[copyLineUp](#commands.copyLineUp)**: [StateCommand](#state.StateCommand)`
+
+Create a copy of the selected lines. Keep the selection in the top copy.
+
+`**[copyLineDown](#commands.copyLineDown)**: [StateCommand](#state.StateCommand)`
+
+Create a copy of the selected lines. Keep the selection in the bottom copy.
+
+`**[deleteLine](#commands.deleteLine)**: [Command](#view.Command)`
+
+Delete selected lines.
 
 ### Indentation
 
-indentSelection `:`StateCommand Auto-indent the selected lines. This uses the
+`**[indentSelection](#commands.indentSelection)**: [StateCommand](#state.StateCommand)`
 
-indentation service
-facet as source for auto-indent
-information.
+Auto-indent the selected lines. This uses the [indentation service facet](#language.indentService) as source for auto-indent information.
 
-indentMore `:`StateCommand Add a
+`**[indentMore](#commands.indentMore)**: [StateCommand](#state.StateCommand)`
 
-unit of indentation to all selected
-lines.
+Add a [unit](#language.indentUnit) of indentation to all selected lines.
 
-indentLess `:`StateCommand Remove a
+`**[indentLess](#commands.indentLess)**: [StateCommand](#state.StateCommand)`
 
-unit of indentation from all
-selected lines.
+Remove a [unit](#language.indentUnit) of indentation from all selected lines.
 
-insertTab `:`StateCommand Insert a tab character at the cursor or, if something is selected,
-use
+`**[insertTab](#commands.insertTab)**: [StateCommand](#state.StateCommand)`
 
-`indentMore`to indent the entire
-selection.
+Insert a tab character at the cursor or, if something is selected, use [`indentMore`](#commands.indentMore) to indent the entire selection.
 
 ### Character Manipulation
 
-transposeChars `:`StateCommand Flip the characters before and after the cursor(s).
+`**[transposeChars](#commands.transposeChars)**: [StateCommand](#state.StateCommand)`
 
-insertNewline `:`StateCommand Replace the selection with a newline.
+Flip the characters before and after the cursor(s).
 
-insertNewlineAndIndent `:`StateCommand Replace the selection with a newline and indent the newly created
-line(s). If the current line consists only of whitespace, this
-will also delete that whitespace. When the cursor is between
-matching brackets, an additional newline will be inserted after
-the cursor.
+`**[insertNewline](#commands.insertNewline)**: [StateCommand](#state.StateCommand)`
 
-insertNewlineKeepIndent `:`StateCommand Replace the selection with a newline and the same amount of
-indentation as the line above.
+Replace the selection with a newline.
 
-insertBlankLine `:`StateCommand Create a blank, indented line below the current line.
+`**[insertNewlineAndIndent](#commands.insertNewlineAndIndent)**: [StateCommand](#state.StateCommand)`
+
+Replace the selection with a newline and indent the newly created line(s). If the current line consists only of whitespace, this will also delete that whitespace. When the cursor is between matching brackets, an additional newline will be inserted after the cursor.
+
+`**[insertNewlineKeepIndent](#commands.insertNewlineKeepIndent)**: [StateCommand](#state.StateCommand)`
+
+Replace the selection with a newline and the same amount of indentation as the line above.
+
+`**[insertBlankLine](#commands.insertBlankLine)**: [StateCommand](#state.StateCommand)`
+
+Create a blank, indented line below the current line.
 
 ### Undo History
 
-history `(`config `⁠?:`Object = {} `) →`Extension Create a history extension with the given configuration.
+`**[history](#commands.history)**([config](#commands.history^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-config minDepth `⁠?:`number The minimum depth (amount of events) to store. Defaults to 100.
+Create a history extension with the given configuration.
 
-newGroupDelay `⁠?:`number The maximum time (in milliseconds) that adjacent events can be
-apart and still be grouped together. Defaults to 500.
+`**[config](#commands.history^config)**`
 
-joinToEvent `⁠?:`fn `(`tr `:`Transaction `,`isAdjacent `:`boolean `) →`boolean By default, when close enough together in time, changes are
-joined into an existing undo event if they touch any of the
-changed ranges from that event. You can pass a custom predicate
-here to influence that logic.
+`**[minDepth](#commands.history^config.minDepth)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-historyKeymap `:`readonly KeyBinding `[]`Default key bindings for the undo history.
+The minimum depth (amount of events) to store. Defaults to 100.
 
-- Mod-z:
-`undo`- .
-- Mod-y (Mod-Shift-z on macOS) + Ctrl-Shift-z on Linux:
-`redo`- .
-- Mod-u:
-`undoSelection`- .
-- Alt-u (Mod-Shift-u on macOS):
-`redoSelection`- .
-historyField `:`StateField `<`unknown `>`The state field used to store the history data. Should probably
-only be used when you want to
+`**[newGroupDelay](#commands.history^config.newGroupDelay)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-serialize or
+The maximum time (in milliseconds) that adjacent events can be apart and still be grouped together. Defaults to 500.
 
-deserialize state objects in a way
-that preserves history.
+`**[joinToEvent](#commands.history^config.joinToEvent)**⁠?: fn([tr](#commands.history^config.joinToEvent^tr): [Transaction](#state.Transaction), [isAdjacent](#commands.history^config.joinToEvent^isAdjacent): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-undo `:`StateCommand Undo a single group of history events. Returns false if no group
-was available.
+By default, when close enough together in time, changes are joined into an existing undo event if they touch any of the changed ranges from that event. You can pass a custom predicate here to influence that logic.
 
-redo `:`StateCommand Redo a group of history events. Returns false if no group was
-available.
+`**[historyKeymap](#commands.historyKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-undoSelection `:`StateCommand Undo a change or selection change.
+Default key bindings for the undo history.
 
-redoSelection `:`StateCommand Redo a change or selection change.
+- Mod-z: [`undo`](#commands.undo).
+- Mod-y (Mod-Shift-z on macOS) + Ctrl-Shift-z on Linux: [`redo`](#commands.redo).
+- Mod-u: [`undoSelection`](#commands.undoSelection).
+- Alt-u (Mod-Shift-u on macOS): [`redoSelection`](#commands.redoSelection).
 
-undoDepth `(`state `:`EditorState `) →`number The amount of undoable change events available in a given state.
+`**[historyField](#commands.historyField)**: [StateField](#state.StateField)<unknown>`
 
-redoDepth `(`state `:`EditorState `) →`number The amount of redoable change events available in a given state.
+The state field used to store the history data. Should probably only be used when you want to [serialize](#state.EditorState.toJSON) or [deserialize](#state.EditorState%5EfromJSON) state objects in a way that preserves history.
 
-isolateHistory `:`AnnotationType `<`"before" `|`"after" `|`"full" `>`Transaction annotation that will prevent that transaction from
-being combined with other transactions in the undo history. Given
+`**[undo](#commands.undo)**: [StateCommand](#state.StateCommand)`
 
-`"before"`, it'll prevent merging with previous transactions. With
+Undo a single group of history events. Returns false if no group was available.
 
-`"after"`, subsequent transactions won't be combined with this
-one. With
+`**[redo](#commands.redo)**: [StateCommand](#state.StateCommand)`
 
-`"full"`, the transaction is isolated on both sides.
+Redo a group of history events. Returns false if no group was available.
 
-invertedEffects `:`Facet `<`fn `(`tr `:`Transaction `) →`readonly StateEffect `<`any `>[]>`This facet provides a way to register functions that, given a
-transaction, provide a set of effects that the history should
-store when inverting the transaction. This can be used to
-integrate some kinds of effects in the history, so that they can
-be undone (and redone again).
+`**[undoSelection](#commands.undoSelection)**: [StateCommand](#state.StateCommand)`
+
+Undo a change or selection change.
+
+`**[redoSelection](#commands.redoSelection)**: [StateCommand](#state.StateCommand)`
+
+Redo a change or selection change.
+
+`**[undoDepth](#commands.undoDepth)**([state](#commands.undoDepth^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The amount of undoable change events available in a given state.
+
+`**[redoDepth](#commands.redoDepth)**([state](#commands.redoDepth^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The amount of redoable change events available in a given state.
+
+`**[isolateHistory](#commands.isolateHistory)**: [AnnotationType](#state.AnnotationType)<"before" | "after" | "full">`
+
+Transaction annotation that will prevent that transaction from being combined with other transactions in the undo history. Given `"before"`, it'll prevent merging with previous transactions. With `"after"`, subsequent transactions won't be combined with this one. With `"full"`, the transaction is isolated on both sides.
+
+`**[invertedEffects](#commands.invertedEffects)**: [Facet](#state.Facet)<fn([tr](#commands.invertedEffects^tr): [Transaction](#state.Transaction)) → readonly [StateEffect](#state.StateEffect)<any>[]>`
+
+This facet provides a way to register functions that, given a transaction, provide a set of effects that the history should store when inverting the transaction. This can be used to integrate some kinds of effects in the history, so that they can be undone (and redone again).
 
 ### Commenting and Uncommenting
 
-interface CommentTokens An object of this type can be provided as
+#### `interface` [CommentTokens](#commands.CommentTokens)
 
-language
-data under a
+An object of this type can be provided as [language data](#state.EditorState.languageDataAt) under a `"commentTokens"` property to configure comment syntax for a language.
 
-`"commentTokens"`property to configure comment syntax for a language.
+`**[block](#commands.CommentTokens.block)**⁠?: {open: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), close: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)}`
 
-block `⁠?: {`open `:`string `,`close `:`string `}`The block comment syntax, if any. For example, for HTML
-you'd provide
+The block comment syntax, if any. For example, for HTML you'd provide `{open: "<!--", close: "-->"}`.
 
-`{open: "<!--", close: "-->"}`.
+`**[line](#commands.CommentTokens.line)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-line `⁠?:`string The line comment syntax. For example
+The line comment syntax. For example `"//"`.
 
-`"//"`.
+`**[toggleComment](#commands.toggleComment)**: [StateCommand](#state.StateCommand)`
 
-toggleComment `:`StateCommand Comment or uncomment the current selection. Will use line comments
-if available, otherwise falling back to block comments.
+Comment or uncomment the current selection. Will use line comments if available, otherwise falling back to block comments.
 
-toggleLineComment `:`StateCommand Comment or uncomment the current selection using line comments.
-The line comment syntax is taken from the
+`**[toggleLineComment](#commands.toggleLineComment)**: [StateCommand](#state.StateCommand)`
 
-`commentTokens`language
-data .
+Comment or uncomment the current selection using line comments. The line comment syntax is taken from the [`commentTokens`](#commands.CommentTokens) [language data](#state.EditorState.languageDataAt).
 
-lineComment `:`StateCommand Comment the current selection using line comments.
+`**[lineComment](#commands.lineComment)**: [StateCommand](#state.StateCommand)`
 
-lineUncomment `:`StateCommand Uncomment the current selection using line comments.
+Comment the current selection using line comments.
 
-toggleBlockComment `:`StateCommand Comment or uncomment the current selection using block comments.
-The block comment syntax is taken from the
+`**[lineUncomment](#commands.lineUncomment)**: [StateCommand](#state.StateCommand)`
 
-`commentTokens`language
-data .
+Uncomment the current selection using line comments.
 
-blockComment `:`StateCommand Comment the current selection using block comments.
+`**[toggleBlockComment](#commands.toggleBlockComment)**: [StateCommand](#state.StateCommand)`
 
-blockUncomment `:`StateCommand Uncomment the current selection using block comments.
+Comment or uncomment the current selection using block comments. The block comment syntax is taken from the [`commentTokens`](#commands.CommentTokens) [language data](#state.EditorState.languageDataAt).
 
-toggleBlockCommentByLine `:`StateCommand Comment or uncomment the lines around the current selection using
-block comments.
+`**[blockComment](#commands.blockComment)**: [StateCommand](#state.StateCommand)`
+
+Comment the current selection using block comments.
+
+`**[blockUncomment](#commands.blockUncomment)**: [StateCommand](#state.StateCommand)`
+
+Uncomment the current selection using block comments.
+
+`**[toggleBlockCommentByLine](#commands.toggleBlockCommentByLine)**: [StateCommand](#state.StateCommand)`
+
+Comment or uncomment the lines around the current selection using block comments.
 
 ### Tab Focus Mode
 
-toggleTabFocusMode `:`Command Enables or disables
+`**[toggleTabFocusMode](#commands.toggleTabFocusMode)**: [Command](#view.Command)`
 
-tab-focus mode . While on, this
-prevents the editor's key bindings from capturing Tab or
-Shift-Tab, making it possible for the user to move focus out of
-the editor with the keyboard.
+Enables or disables [tab-focus mode](#view.EditorView.setTabFocusMode). While on, this prevents the editor's key bindings from capturing Tab or Shift-Tab, making it possible for the user to move focus out of the editor with the keyboard.
 
-temporarilySetTabFocusMode `:`Command Temporarily enables
+`**[temporarilySetTabFocusMode](#commands.temporarilySetTabFocusMode)**: [Command](#view.Command)`
 
-tab-focus
-mode for two seconds or until
-another key is pressed.
+Temporarily enables [tab-focus mode](#view.EditorView.setTabFocusMode) for two seconds or until another key is pressed.
 
-@codemirror/ search searchKeymap `:`readonly KeyBinding `[]`Default search-related key bindings.
+## [@codemirror/search](#search)
 
-- Mod-f:
-`openSearchPanel`- F3, Mod-g:
-`findNext`- Shift-F3, Shift-Mod-g:
-`findPrevious`- Mod-Alt-g:
-`gotoLine`- Mod-d:
-`selectNextOccurrence`search `(`config `⁠?:`Object `) →`Extension Add search state to the editor configuration, and optionally
-configure the search extension.
-(
+`**[searchKeymap](#search.searchKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-`openSearchPanel`will automatically
-enable this if it isn't already on).
+Default search-related key bindings.
 
-config top `⁠?:`boolean Whether to position the search panel at the top of the editor
-(the default is at the bottom).
+- Mod-f: [`openSearchPanel`](#search.openSearchPanel)
+- F3, Mod-g: [`findNext`](#search.findNext)
+- Shift-F3, Shift-Mod-g: [`findPrevious`](#search.findPrevious)
+- Mod-Alt-g: [`gotoLine`](#search.gotoLine)
+- Mod-d: [`selectNextOccurrence`](#search.selectNextOccurrence)
 
-caseSensitive `⁠?:`boolean Whether to enable case sensitivity by default when the search
-panel is activated (defaults to false).
+`**[search](#search.search)**([config](#search.search^config)⁠?: Object) → [Extension](#state.Extension)`
 
-literal `⁠?:`boolean Whether to treat string searches literally by default (defaults to false).
+Add search state to the editor configuration, and optionally configure the search extension. ([`openSearchPanel`](#search.openSearchPanel) will automatically enable this if it isn't already on).
 
-wholeWord `⁠?:`boolean Controls whether the default query has by-word matching enabled.
-Defaults to false.
+`**[config](#search.search^config)**`
 
-regexp `⁠?:`boolean Used to turn on regular expression search in the default query.
-Defaults to false.
+`**[top](#search.search^config.top)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-createPanel `⁠?:`fn `(`view `:`EditorView `) →`Panel Can be used to override the way the search panel is implemented.
-Should create a
+Whether to position the search panel at the top of the editor (the default is at the bottom).
 
-Panel that contains a form
-which lets the user:
+`**[caseSensitive](#search.search^config.caseSensitive)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-- See the
-current - search query.
-- Manipulate the
-query - and
-update - the search state with a new
-query.
-- Notice external changes to the query by reacting to the
-appropriate
-state effect - .
+Whether to enable case sensitivity by default when the search panel is activated (defaults to false).
+
+`**[literal](#search.search^config.literal)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Whether to treat string searches literally by default (defaults to false).
+
+`**[wholeWord](#search.search^config.wholeWord)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Controls whether the default query has by-word matching enabled. Defaults to false.
+
+`**[regexp](#search.search^config.regexp)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Used to turn on regular expression search in the default query. Defaults to false.
+
+`**[createPanel](#search.search^config.createPanel)**⁠?: fn([view](#search.search^config.createPanel^view): [EditorView](#view.EditorView)) → [Panel](#view.Panel)`
+
+Can be used to override the way the search panel is implemented. Should create a [Panel](#view.Panel) that contains a form which lets the user:
+
+- See the [current](#search.getSearchQuery) search query.
+- Manipulate the [query](#search.SearchQuery) and [update](#search.setSearchQuery) the search state with a new query.
+- Notice external changes to the query by reacting to the appropriate [state effect](#search.setSearchQuery).
 - Run some of the search commands.
-The field that should be focused when opening the panel must be
-tagged with a
 
-`main-field=true`DOM attribute.
+The field that should be focused when opening the panel must be tagged with a `main-field=true` DOM attribute.
 
-scrollToMatch `⁠?:`fn `(`range `:`SelectionRange `,`view `:`EditorView `) →`StateEffect `<`unknown `>`By default, matches are scrolled into view using the default
-behavior of
+`**[scrollToMatch](#search.search^config.scrollToMatch)**⁠?: fn([range](#search.search^config.scrollToMatch^range): [SelectionRange](#state.SelectionRange), [view](#search.search^config.scrollToMatch^view): [EditorView](#view.EditorView)) → [StateEffect](#state.StateEffect)<unknown>`
 
-`EditorView.scrollIntoView`.
-This option allows you to pass a custom function to produce the
-scroll effect.
+By default, matches are scrolled into view using the default behavior of [`EditorView.scrollIntoView`](#view.EditorView%5EscrollIntoView). This option allows you to pass a custom function to produce the scroll effect.
 
 ### Commands
 
-findNext `:`Command Open the search panel if it isn't already open, and move the
-selection to the first match after the current main selection.
-Will wrap around to the start of the document when it reaches the
-end.
+`**[findNext](#search.findNext)**: [Command](#view.Command)`
 
-findPrevious `:`Command Move the selection to the previous instance of the search query,
-before the current main selection. Will wrap past the start
-of the document to start searching at the end again.
+Open the search panel if it isn't already open, and move the selection to the first match after the current main selection. Will wrap around to the start of the document when it reaches the end.
 
-selectMatches `:`Command Select all instances of the search query.
+`**[findPrevious](#search.findPrevious)**: [Command](#view.Command)`
 
-selectSelectionMatches `:`StateCommand Select all instances of the currently selected text.
+Move the selection to the previous instance of the search query, before the current main selection. Will wrap past the start of the document to start searching at the end again.
 
-selectNextOccurrence `:`StateCommand Select next occurrence of the current selection. Expand selection
-to the surrounding word when the selection is empty.
+`**[selectMatches](#search.selectMatches)**: [Command](#view.Command)`
 
-replaceNext `:`Command Replace the current match of the search query.
+Select all instances of the search query.
 
-replaceAll `:`Command Replace all instances of the search query with the given
-replacement.
+`**[selectSelectionMatches](#search.selectSelectionMatches)**: [StateCommand](#state.StateCommand)`
 
-openSearchPanel `:`Command Make sure the search panel is open and focused.
+Select all instances of the currently selected text.
 
-closeSearchPanel `:`Command Close the search panel.
+`**[selectNextOccurrence](#search.selectNextOccurrence)**: [StateCommand](#state.StateCommand)`
 
-gotoLine `:`Command Command that shows a dialog asking the user for a line number, and
-when a valid position is provided, moves the cursor to that line.
+Select next occurrence of the current selection. Expand selection to the surrounding word when the selection is empty.
 
-Supports line numbers, relative line offsets prefixed with
+`**[replaceNext](#search.replaceNext)**: [Command](#view.Command)`
 
-`+`or
+Replace the current match of the search query.
 
-`-`, document percentages suffixed with
+`**[replaceAll](#search.replaceAll)**: [Command](#view.Command)`
 
-`%`, and an optional
-column position by adding
+Replace all instances of the search query with the given replacement.
 
-`:`and a second number after the line
-number.
+`**[openSearchPanel](#search.openSearchPanel)**: [Command](#view.Command)`
+
+Make sure the search panel is open and focused.
+
+`**[closeSearchPanel](#search.closeSearchPanel)**: [Command](#view.Command)`
+
+Close the search panel.
+
+`**[gotoLine](#search.gotoLine)**: [Command](#view.Command)`
+
+Command that shows a dialog asking the user for a line number, and when a valid position is provided, moves the cursor to that line.
+
+Supports line numbers, relative line offsets prefixed with `+` or `-`, document percentages suffixed with `%`, and an optional column position by adding `:` and a second number after the line number.
 
 ### Search Query
 
-class SearchQuery A search query. Part of the editor's search state.
+#### `class` [SearchQuery](#search.SearchQuery)
 
-new SearchQuery `(`config `:`Object `)`Create a query object.
+A search query. Part of the editor's search state.
 
-config search `:`string The search string.
+`new **[SearchQuery](#search.SearchQuery.constructor)**([config](#search.SearchQuery.constructor^config): [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))`
 
-caseSensitive `⁠?:`boolean Controls whether the search should be case-sensitive.
+Create a query object.
 
-literal `⁠?:`boolean By default, string search will replace
+`**[config](#search.SearchQuery.constructor^config)**`
 
-`\n`,
+`**[search](#search.SearchQuery.constructor^config.search)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`\r`, and
+The search string.
 
-`\t`in
-the query with newline, return, and tab characters. When this
-is set to true, that behavior is disabled.
+`**[caseSensitive](#search.SearchQuery.constructor^config.caseSensitive)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-regexp `⁠?:`boolean When true, interpret the search string as a regular expression.
+Controls whether the search should be case-sensitive.
 
-replace `⁠?:`string The replace text.
+`**[literal](#search.SearchQuery.constructor^config.literal)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-wholeWord `⁠?:`boolean Enable whole-word matching.
+By default, string search will replace `\n`, `\r`, and `\t` in the query with newline, return, and tab characters. When this is set to true, that behavior is disabled.
 
-search `:`string The search string (or regular expression).
+`**[regexp](#search.SearchQuery.constructor^config.regexp)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-caseSensitive `:`boolean Indicates whether the search is case-sensitive.
+When true, interpret the search string as a regular expression.
 
-literal `:`boolean By default, string search will replace
+`**[replace](#search.SearchQuery.constructor^config.replace)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`\n`,
+The replace text.
 
-`\r`, and
+`**[wholeWord](#search.SearchQuery.constructor^config.wholeWord)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`\t`in
-the query with newline, return, and tab characters. When this
-is set to true, that behavior is disabled.
+Enable whole-word matching.
 
-regexp `:`boolean When true, the search string is interpreted as a regular
-expression.
+`**[search](#search.SearchQuery.search)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-replace `:`string The replace text, or the empty string if no replace text has
-been given.
+The search string (or regular expression).
 
-valid `:`boolean Whether this query is non-empty and, in case of a regular
-expression search, syntactically valid.
+`**[caseSensitive](#search.SearchQuery.caseSensitive)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-wholeWord `:`boolean When true, matches that contain words are ignored when there are
-further word characters around them.
+Indicates whether the search is case-sensitive.
 
-eq `(`other `:`SearchQuery `) →`boolean Compare this query to another query.
+`**[literal](#search.SearchQuery.literal)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-getCursor `(`state : EditorState | Text , from ⁠?: number = 0 , to ⁠?: number `) →`Iterator `<{`from `:`number `,`to `:`number `}>`Get a search cursor for this query, searching through the given
-range in the given state.
+By default, string search will replace `\n`, `\r`, and `\t` in the query with newline, return, and tab characters. When this is set to true, that behavior is disabled.
 
-getSearchQuery `(`state `:`EditorState `) →`SearchQuery Get the current search query from an editor state.
+`**[regexp](#search.SearchQuery.regexp)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-setSearchQuery `:`StateEffectType `<`SearchQuery `>`A state effect that updates the current search query. Note that
-this only has an effect if the search state has been initialized
-(by including
+When true, the search string is interpreted as a regular expression.
 
-`search`in your configuration or
-by running
+`**[replace](#search.SearchQuery.replace)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`openSearchPanel`at least
-once).
+The replace text, or the empty string if no replace text has been given.
 
-searchPanelOpen `(`state `:`EditorState `) →`boolean Query whether the search panel is open in the given editor state.
+`**[valid](#search.SearchQuery.valid)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Whether this query is non-empty and, in case of a regular expression search, syntactically valid.
+
+`**[wholeWord](#search.SearchQuery.wholeWord)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+When true, matches that contain words are ignored when there are further word characters around them.
+
+`**[eq](#search.SearchQuery.eq)**([other](#search.SearchQuery.eq^other): [SearchQuery](#search.SearchQuery)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Compare this query to another query.
+
+`**[getCursor](#search.SearchQuery.getCursor)**(  [state](#search.SearchQuery.getCursor^state): [EditorState](#state.EditorState) | [Text](#state.Text),  [from](#search.SearchQuery.getCursor^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0,  [to](#search.SearchQuery.getCursor^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}>`
+
+Get a search cursor for this query, searching through the given range in the given state.
+
+`**[getSearchQuery](#search.getSearchQuery)**([state](#search.getSearchQuery^state): [EditorState](#state.EditorState)) → [SearchQuery](#search.SearchQuery)`
+
+Get the current search query from an editor state.
+
+`**[setSearchQuery](#search.setSearchQuery)**: [StateEffectType](#state.StateEffectType)<[SearchQuery](#search.SearchQuery)>`
+
+A state effect that updates the current search query. Note that this only has an effect if the search state has been initialized (by including [`search`](#search.search) in your configuration or by running [`openSearchPanel`](#search.openSearchPanel) at least once).
+
+`**[searchPanelOpen](#search.searchPanelOpen)**([state](#search.searchPanelOpen^state): [EditorState](#state.EditorState)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
+
+Query whether the search panel is open in the given editor state.
 
 ### Cursor
 
-class SearchCursor implements Iterator `<{`from `:`number `,`to `:`number `}>`A search cursor provides an iterator over text matches in a
-document.
+#### `class` [SearchCursor](#search.SearchCursor) `implements [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}>`
 
-new SearchCursor `(`text : Text , query : string , from ⁠?: number = 0 , to ⁠?: number = text.length , normalize ⁠?: fn ( string : string ) → string , test ⁠?: fn ( from : number , to : number , buffer : string , bufferPos : number ) → boolean `)`Create a text cursor. The query is the search string,
+A search cursor provides an iterator over text matches in a document.
 
-`from`to
+`new **[SearchCursor](#search.SearchCursor.constructor)**(  [text](#search.SearchCursor.constructor^text): [Text](#state.Text),  [query](#search.SearchCursor.constructor^query): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [from](#search.SearchCursor.constructor^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0,  [to](#search.SearchCursor.constructor^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = text.length,  [normalize](#search.SearchCursor.constructor^normalize)⁠?: fn([string](#search.SearchCursor.constructor^normalize^string): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [test](#search.SearchCursor.constructor^test)⁠?: fn(  [from](#search.SearchCursor.constructor^test^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#search.SearchCursor.constructor^test^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [buffer](#search.SearchCursor.constructor^test^buffer): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [bufferPos](#search.SearchCursor.constructor^test^bufferPos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  )`
 
-`to`provides the region to search.
+Create a text cursor. The query is the search string, `from` to `to` provides the region to search.
 
-When
+When `normalize` is given, it will be called, on both the query string and the content it is matched against, before comparing. You can, for example, create a case-insensitive search by passing `s => s.toLowerCase()`.
 
-`normalize`is given, it will be called, on both the query
-string and the content it is matched against, before comparing.
-You can, for example, create a case-insensitive search by
-passing
+Text is always normalized with [`.normalize("NFKD")`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize) (when supported).
 
-`s => s.toLowerCase()`.
+`**[value](#search.SearchCursor.value)**: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}`
 
-Text is always normalized with
+The current match (only holds a meaningful value after [`next`](#search.SearchCursor.next) has been called and when `done` is false).
 
-`.normalize("NFKD")`(when supported).
+`**[done](#search.SearchCursor.done)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-value `: {`from `:`number `,`to `:`number `}`The current match (only holds a meaningful value after
+Whether the end of the iterated region has been reached.
 
-`next`has been called and when
+`**[next](#search.SearchCursor.next)**() → [SearchCursor](#search.SearchCursor)`
 
-`done`is false).
+Look for the next match. Updates the iterator's [`value`](#search.SearchCursor.value) and [`done`](#search.SearchCursor.done) properties. Should be called at least once before using the cursor.
 
-done `:`boolean Whether the end of the iterated region has been reached.
+`**[nextOverlapping](#search.SearchCursor.nextOverlapping)**() → [SearchCursor](#search.SearchCursor)`
 
-next `() →`SearchCursor Look for the next match. Updates the iterator's
+The `next` method will ignore matches that partially overlap a previous match. This method behaves like `next`, but includes such matches.
 
-`value`and
+`**[[symbol iterator]](#search.SearchCursor.[symbol iterator])**() → [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)}>`
 
-`done`properties. Should be called
-at least once before using the cursor.
+#### `class` [RegExpCursor](#search.RegExpCursor) `implements [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), match: [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value)}>`
 
-nextOverlapping `() →`SearchCursor The
+This class is similar to [`SearchCursor`](#search.SearchCursor) but searches for a regular expression pattern instead of a plain string.
 
-`next`method will ignore matches that partially overlap a
-previous match. This method behaves like
+`new **[RegExpCursor](#search.RegExpCursor.constructor)**(  [text](#search.RegExpCursor.constructor^text): [Text](#state.Text),  [query](#search.RegExpCursor.constructor^query): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [options](#search.RegExpCursor.constructor^options)⁠?: {  ignoreCase⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  test⁠?: fn([from](#search.RegExpCursor.constructor^options.test^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#search.RegExpCursor.constructor^options.test^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [match](#search.RegExpCursor.constructor^options.test^match): [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  },  [from](#search.RegExpCursor.constructor^from)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = 0,  [to](#search.RegExpCursor.constructor^to)⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) = text.length  )`
 
-`next`, but includes
-such matches.
+Create a cursor that will search the given range in the given document. `query` should be the raw pattern (as you'd pass it to `new RegExp`).
 
-[symbol iterator] `() →`Iterator `<{`from `:`number `,`to `:`number `}>`class RegExpCursor implements Iterator `<{`from `:`number `,`to `:`number `,`match `:`RegExpExecArray `}>`This class is similar to
+`**[done](#search.RegExpCursor.done)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`SearchCursor`but searches for a regular expression pattern instead of a plain
-string.
+Set to `true` when the cursor has reached the end of the search range.
 
-new RegExpCursor `(`text : Text , query : string , options ⁠?: { ignoreCase ⁠?: boolean , test ⁠?: fn ( from : number , to : number , match : RegExpExecArray ) → boolean }, from ⁠?: number = 0 , to ⁠?: number = text.length `)`Create a cursor that will search the given range in the given
-document.
+`**[value](#search.RegExpCursor.value)**: {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), match: [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value)}`
 
-`query`should be the raw pattern (as you'd pass it to
+Will contain an object with the extent of the match and the match object when [`next`](#search.RegExpCursor.next) sucessfully finds a match.
 
-`new RegExp`).
+`**[next](#search.RegExpCursor.next)**() → [RegExpCursor](#search.RegExpCursor)`
 
-done `:`boolean Set to
+Move to the next match, if there is one.
 
-`true`when the cursor has reached the end of the search
-range.
+`**[[symbol iterator]](#search.RegExpCursor.[symbol iterator])**() → [Iterator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols)<{from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), match: [RegExpExecArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/match#Return_value)}>`
 
-value `: {`from `:`number `,`to `:`number `,`match `:`RegExpExecArray `}`Will contain an object with the extent of the match and the
-match object when
+### Selection matching
 
-`next`sucessfully finds a match.
+`**[highlightSelectionMatches](#search.highlightSelectionMatches)**([options](#search.highlightSelectionMatches^options)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)) → [Extension](#state.Extension)`
 
-next `() →`RegExpCursor Move to the next match, if there is one.
+This extension highlights text that matches the selection. It uses the `"cm-selectionMatch"` class for the highlighting. When `highlightWordAroundCursor` is enabled, the word at the cursor itself will be highlighted with `"cm-selectionMatch-main"`.
 
-[symbol iterator] `() →`Iterator `<{`from `:`number `,`to `:`number `,`match `:`RegExpExecArray `}>`### Selection matching
+`**[options](#search.highlightSelectionMatches^options)**`
 
-highlightSelectionMatches `(`options `⁠?:`Object `) →`Extension This extension highlights text that matches the selection. It uses
-the
+`**[highlightWordAroundCursor](#search.highlightSelectionMatches^options.highlightWordAroundCursor)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`"cm-selectionMatch"`class for the highlighting. When
+Determines whether, when nothing is selected, the word around the cursor is matched instead. Defaults to false.
 
-`highlightWordAroundCursor`is enabled, the word at the cursor
-itself will be highlighted with
+`**[minSelectionLength](#search.highlightSelectionMatches^options.minSelectionLength)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`"cm-selectionMatch-main"`.
+The minimum length of the selection before it is highlighted. Defaults to 1 (always highlight non-cursor selections).
 
-options highlightWordAroundCursor `⁠?:`boolean Determines whether, when nothing is selected, the word around
-the cursor is matched instead. Defaults to false.
+`**[maxMatches](#search.highlightSelectionMatches^options.maxMatches)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-minSelectionLength `⁠?:`number The minimum length of the selection before it is highlighted.
-Defaults to 1 (always highlight non-cursor selections).
+The amount of matches (in the viewport) at which to disable highlighting. Defaults to 100.
 
-maxMatches `⁠?:`number The amount of matches (in the viewport) at which to disable
-highlighting. Defaults to 100.
+`**[wholeWords](#search.highlightSelectionMatches^options.wholeWords)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-wholeWords `⁠?:`boolean Whether to only highlight whole words.
+Whether to only highlight whole words.
 
-@codemirror/ autocomplete interface Completion Objects type used to represent individual completions.
+## [@codemirror/autocomplete](#autocomplete)
 
-label `:`string The label to show in the completion picker. This is what input
-is matched against to determine whether a completion matches (and
-how well it matches).
+#### `interface` [Completion](#autocomplete.Completion)
 
-displayLabel `⁠?:`string An optional override for the completion's visible label. When
-using this, matched characters will only be highlighted if you
-provide a
+Objects type used to represent individual completions.
 
-`getMatch`function.
+`**[label](#autocomplete.Completion.label)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-detail `⁠?:`string An optional short piece of information to show (with a different
-style) after the label.
+The label to show in the completion picker. This is what input is matched against to determine whether a completion matches (and how well it matches).
 
-info `⁠?:`string `|`fn ( completion : Completion ) → Node | { dom : Node , destroy ⁠?: fn ()} | Promise < CompletionInfo > | null Additional info to show when the completion is selected. Can be
-a plain string or a function that'll render the DOM structure to
-show when invoked.
+`**[displayLabel](#autocomplete.Completion.displayLabel)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-apply `⁠?:`string `|`fn ( view : EditorView , completion : Completion , from : number , to : number ) How to apply the completion. The default is to replace it with
-its
+An optional override for the completion's visible label. When using this, matched characters will only be highlighted if you provide a [`getMatch`](#autocomplete.CompletionResult.getMatch) function.
 
-label . When this holds a
-string, the completion range is replaced by that string. When it
-is a function, that function is called to perform the
-completion. If it fires a transaction, it is responsible for
-adding the
+`**[detail](#autocomplete.Completion.detail)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`pickedCompletion`annotation to it.
+An optional short piece of information to show (with a different style) after the label.
 
-type `⁠?:`string The type of the completion. This is used to pick an icon to show
-for the completion. Icons are styled with a CSS class created by
-appending the type name to
+`**[info](#autocomplete.Completion.info)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) |  fn([completion](#autocomplete.Completion.info^completion): [Completion](#autocomplete.Completion)) → [Node](https://developer.mozilla.org/en/docs/DOM/Node) |  {dom: [Node](https://developer.mozilla.org/en/docs/DOM/Node), destroy⁠?: fn()} |  [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<[CompletionInfo](#autocomplete.CompletionInfo)> |  [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)    `
 
-`"cm-completionIcon-"`. You can
-define or restyle icons by defining these selectors. The base
-library defines simple icons for
+Additional info to show when the completion is selected. Can be a plain string or a function that'll render the DOM structure to show when invoked.
 
-`class`,
+`**[apply](#autocomplete.Completion.apply)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) |  fn(  [view](#autocomplete.Completion.apply^view): [EditorView](#view.EditorView),  [completion](#autocomplete.Completion.apply^completion): [Completion](#autocomplete.Completion),  [from](#autocomplete.Completion.apply^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#autocomplete.Completion.apply^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )  `
 
-`constant`,
+How to apply the completion. The default is to replace it with its [label](#autocomplete.Completion.label). When this holds a string, the completion range is replaced by that string. When it is a function, that function is called to perform the completion. If it fires a transaction, it is responsible for adding the [`pickedCompletion`](#autocomplete.pickedCompletion) annotation to it.
 
-`enum`,
+`**[type](#autocomplete.Completion.type)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`function`,
-
-`interface`,
-
-`keyword`,
-
-`method`,
-
-`namespace`,
-
-`property`,
-
-`text`,
-
-`type`, and
-
-`variable`.
+The type of the completion. This is used to pick an icon to show for the completion. Icons are styled with a CSS class created by appending the type name to `"cm-completionIcon-"`. You can define or restyle icons by defining these selectors. The base library defines simple icons for `class`, `constant`, `enum`, `function`, `interface`, `keyword`, `method`, `namespace`, `property`, `text`, `type`, and `variable`.
 
 Multiple types can be provided by separating them with spaces.
 
-commitCharacters `⁠?:`readonly string `[]`When this option is selected, and one of these characters is
-typed, insert the completion before typing the character.
+`**[commitCharacters](#autocomplete.Completion.commitCharacters)**⁠?: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-boost `⁠?:`number When given, should be a number from -99 to 99 that adjusts how
-this completion is ranked compared to other completions that
-match the input as well as this one. A negative number moves it
-down the list, a positive number moves it up.
+When this option is selected, and one of these characters is typed, insert the completion before typing the character.
 
-section `⁠?:`string `|`CompletionSection Can be used to divide the completion list into sections.
-Completions in a given section (matched by name) will be grouped
-together, with a heading above them. Options without section
-will appear above all sections. A string value is equivalent to
-a
+`**[boost](#autocomplete.Completion.boost)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`{name}`object.
+When given, should be a number from -99 to 99 that adjusts how this completion is ranked compared to other completions that match the input as well as this one. A negative number moves it down the list, a positive number moves it up.
 
-type CompletionInfo `=`Node `| {`dom `:`Node `,`destroy `⁠?:`fn `()} |`null The type returned from
+`**[section](#autocomplete.Completion.section)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [CompletionSection](#autocomplete.CompletionSection)`
 
-`Completion.info`. May be a DOM
-node, null to indicate there is no info, or an object with an
-optional
+Can be used to divide the completion list into sections. Completions in a given section (matched by name) will be grouped together, with a heading above them. Options without section will appear above all sections. A string value is equivalent to a `{name}` object.
 
-`destroy`method that cleans up the node.
+`type **[CompletionInfo](#autocomplete.CompletionInfo)** = [Node](https://developer.mozilla.org/en/docs/DOM/Node) | {dom: [Node](https://developer.mozilla.org/en/docs/DOM/Node), destroy⁠?: fn()} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-interface CompletionSection Object used to describe a completion
+The type returned from [`Completion.info`](#autocomplete.Completion.info). May be a DOM node, null to indicate there is no info, or an object with an optional `destroy` method that cleans up the node.
 
-section . It is recommended to
-create a shared object used by all the completions in a given
-section.
+#### `interface` [CompletionSection](#autocomplete.CompletionSection)
 
-name `:`string The name of the section. If no
+Object used to describe a completion [section](#autocomplete.Completion.section). It is recommended to create a shared object used by all the completions in a given section.
 
-`render`method is present, this
-will be displayed above the options.
+`**[name](#autocomplete.CompletionSection.name)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-header `⁠?:`fn `(`section `:`CompletionSection `) →`HTMLElement An optional function that renders the section header. Since the
-headers are shown inside a list, you should make sure the
-resulting element has a
+The name of the section. If no `render` method is present, this will be displayed above the options.
 
-`display: list-item`style.
+`**[header](#autocomplete.CompletionSection.header)**⁠?: fn([section](#autocomplete.CompletionSection.header^section): [CompletionSection](#autocomplete.CompletionSection)) → [HTMLElement](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement)`
 
-rank `⁠?:`number By default, sections are ordered alphabetically by name. To
-specify an explicit order,
+An optional function that renders the section header. Since the headers are shown inside a list, you should make sure the resulting element has a `display: list-item` style.
 
-`rank`can be used. Sections with a
-lower rank will be shown above sections with a higher rank.
+`**[rank](#autocomplete.CompletionSection.rank)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-autocompletion `(`config `⁠?:`Object = {} `) →`Extension Returns an extension that enables autocompletion.
+By default, sections are ordered alphabetically by name. To specify an explicit order, `rank` can be used. Sections with a lower rank will be shown above sections with a higher rank.
 
-config activateOnTyping `⁠?:`boolean When enabled (defaults to true), autocompletion will start
-whenever the user types something that can be completed.
+`**[autocompletion](#autocomplete.autocompletion)**([config](#autocomplete.autocompletion^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-activateOnCompletion `⁠?:`fn `(`completion `:`Completion `) →`boolean When given, if a completion that matches the predicate is
-picked, reactivate completion again as if it was typed normally.
+Returns an extension that enables autocompletion.
 
-activateOnTypingDelay `⁠?:`number The amount of time to wait for further typing before querying
-completion sources via
+`**[config](#autocomplete.autocompletion^config)**`
 
-`activateOnTyping`.
-Defaults to 100, which should be fine unless your completion
-source is very slow and/or doesn't use
+`**[activateOnTyping](#autocomplete.autocompletion^config.activateOnTyping)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`validFor`.
+When enabled (defaults to true), autocompletion will start whenever the user types something that can be completed.
 
-selectOnOpen `⁠?:`boolean By default, when completion opens, the first option is selected
-and can be confirmed with
+`**[activateOnCompletion](#autocomplete.autocompletion^config.activateOnCompletion)**⁠?: fn([completion](#autocomplete.autocompletion^config.activateOnCompletion^completion): [Completion](#autocomplete.Completion)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`acceptCompletion`. When this
-is set to false, the completion widget starts with no completion
-selected, and the user has to explicitly move to a completion
-before you can confirm one.
+When given, if a completion that matches the predicate is picked, reactivate completion again as if it was typed normally.
 
-override `⁠?:`readonly CompletionSource `[]`Override the completion sources used. By default, they will be
-taken from the
+`**[activateOnTypingDelay](#autocomplete.autocompletion^config.activateOnTypingDelay)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`"autocomplete"`language
-data (which should hold
+The amount of time to wait for further typing before querying completion sources via [`activateOnTyping`](#autocomplete.autocompletion%5Econfig.activateOnTyping). Defaults to 100, which should be fine unless your completion source is very slow and/or doesn't use `validFor`.
 
-completion sources or arrays
-of
+`**[selectOnOpen](#autocomplete.autocompletion^config.selectOnOpen)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-completions ).
+By default, when completion opens, the first option is selected and can be confirmed with [`acceptCompletion`](#autocomplete.acceptCompletion). When this is set to false, the completion widget starts with no completion selected, and the user has to explicitly move to a completion before you can confirm one.
 
-closeOnBlur `⁠?:`boolean Determines whether the completion tooltip is closed when the
-editor loses focus. Defaults to true.
+`**[override](#autocomplete.autocompletion^config.override)**⁠?: readonly [CompletionSource](#autocomplete.CompletionSource)[]`
 
-maxRenderedOptions `⁠?:`number The maximum number of options to render to the DOM.
+Override the completion sources used. By default, they will be taken from the `"autocomplete"` [language data](#state.EditorState.languageDataAt) (which should hold [completion sources](#autocomplete.CompletionSource) or arrays of [completions](#autocomplete.Completion)).
 
-defaultKeymap `⁠?:`boolean Set this to false to disable the
+`**[closeOnBlur](#autocomplete.autocompletion^config.closeOnBlur)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-default completion
-keymap . (This requires you to
-add bindings to control completion yourself. The bindings should
-probably have a higher precedence than other bindings for the
-same keys.)
+Determines whether the completion tooltip is closed when the editor loses focus. Defaults to true.
 
-aboveCursor `⁠?:`boolean By default, completions are shown below the cursor when there is
-space. Setting this to true will make the extension put the
-completions above the cursor when possible.
+`**[maxRenderedOptions](#autocomplete.autocompletion^config.maxRenderedOptions)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-tooltipClass `⁠?:`fn `(`state `:`EditorState `) →`string When given, this may return an additional CSS class to add to
-the completion dialog element.
+The maximum number of options to render to the DOM.
 
-optionClass `⁠?:`fn `(`completion `:`Completion `) →`string This can be used to add additional CSS classes to completion
-options.
+`**[defaultKeymap](#autocomplete.autocompletion^config.defaultKeymap)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-icons `⁠?:`boolean By default, the library will render icons based on the
-completion's
+Set this to false to disable the [default completion keymap](#autocomplete.completionKeymap). (This requires you to add bindings to control completion yourself. The bindings should probably have a higher precedence than other bindings for the same keys.)
 
-type in front of
-each option. Set this to false to turn that off.
+`**[aboveCursor](#autocomplete.autocompletion^config.aboveCursor)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-addToOptions `⁠?: {`render : fn ( completion : Completion , state : EditorState , view : EditorView ) → Node | null , position : number `}[]`This option can be used to inject additional content into
-options. The
+By default, completions are shown below the cursor when there is space. Setting this to true will make the extension put the completions above the cursor when possible.
 
-`render`function will be called for each visible
-completion, and should produce a DOM node to show.
+`**[tooltipClass](#autocomplete.autocompletion^config.tooltipClass)**⁠?: fn([state](#autocomplete.autocompletion^config.tooltipClass^state): [EditorState](#state.EditorState)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`position`determines where in the DOM the result appears, relative to
-other added widgets and the standard content. The default icons
-have position 20, the label position 50, and the detail position
-80.
+When given, this may return an additional CSS class to add to the completion dialog element.
 
-positionInfo `⁠?:`fn `(`view : EditorView , list : Rect , option : Rect , info : Rect , space : Rect `) → {`style `⁠?:`string `,`class `⁠?:`string `}`By default,
+`**[optionClass](#autocomplete.autocompletion^config.optionClass)**⁠?: fn([completion](#autocomplete.autocompletion^config.optionClass^completion): [Completion](#autocomplete.Completion)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-info tooltips are
-placed to the side of the selected completion. This option can
-be used to override that. It will be given rectangles for the
-list of completions, the selected option, the info element, and
-the availble
+This can be used to add additional CSS classes to completion options.
 
-tooltip
-space , and should return
-style and/or class strings for the info element.
+`**[icons](#autocomplete.autocompletion^config.icons)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-compareCompletions `⁠?:`fn `(`a `:`Completion `,`b `:`Completion `) →`number The comparison function to use when sorting completions with the same
-match score. Defaults to using
+By default, the library will render icons based on the completion's [type](#autocomplete.Completion.type) in front of each option. Set this to false to turn that off.
 
-`localeCompare`.
+`**[addToOptions](#autocomplete.autocompletion^config.addToOptions)**⁠?: {  render: fn(  [completion](#autocomplete.autocompletion^config.addToOptions.render^completion): [Completion](#autocomplete.Completion),  [state](#autocomplete.autocompletion^config.addToOptions.render^state): [EditorState](#state.EditorState),  [view](#autocomplete.autocompletion^config.addToOptions.render^view): [EditorView](#view.EditorView)  ) → [Node](https://developer.mozilla.org/en/docs/DOM/Node) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null),  position: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  }[]`
 
-filterStrict `⁠?:`boolean When set to true (the default is false), turn off fuzzy matching
-of completions and only show those that start with the text the
-user typed. Only takes effect for results where
+This option can be used to inject additional content into options. The `render` function will be called for each visible completion, and should produce a DOM node to show. `position` determines where in the DOM the result appears, relative to other added widgets and the standard content. The default icons have position 20, the label position 50, and the detail position 80.
 
-`filter`isn't false.
+`**[positionInfo](#autocomplete.autocompletion^config.positionInfo)**⁠?: fn(  [view](#autocomplete.autocompletion^config.positionInfo^view): [EditorView](#view.EditorView),  [list](#autocomplete.autocompletion^config.positionInfo^list): [Rect](#view.Rect),  [option](#autocomplete.autocompletion^config.positionInfo^option): [Rect](#view.Rect),  [info](#autocomplete.autocompletion^config.positionInfo^info): [Rect](#view.Rect),  [space](#autocomplete.autocompletion^config.positionInfo^space): [Rect](#view.Rect)  ) → {style⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), class⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)}`
 
-interactionDelay `⁠?:`number By default, commands relating to an open completion only take
-effect 75 milliseconds after the completion opened, so that key
-presses made before the user is aware of the tooltip don't go to
-the tooltip. This option can be used to configure that delay.
+By default, [info](#autocomplete.Completion.info) tooltips are placed to the side of the selected completion. This option can be used to override that. It will be given rectangles for the list of completions, the selected option, the info element, and the availble [tooltip space](#view.tooltips%5Econfig.tooltipSpace), and should return style and/or class strings for the info element.
 
-updateSyncTime `⁠?:`number When there are multiple asynchronous completion sources, this
-controls how long the extension waits for a slow source before
-displaying results from faster sources. Defaults to 100
-milliseconds.
+`**[compareCompletions](#autocomplete.autocompletion^config.compareCompletions)**⁠?: fn([a](#autocomplete.autocompletion^config.compareCompletions^a): [Completion](#autocomplete.Completion), [b](#autocomplete.autocompletion^config.compareCompletions^b): [Completion](#autocomplete.Completion)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-completionStatus `(`state `:`EditorState `) →`"active" `|`"pending" `|`null Get the current completion status. When completions are available,
-this will return
+The comparison function to use when sorting completions with the same match score. Defaults to using [`localeCompare`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/localeCompare).
 
-`"active"`. When completions are pending (in the
-process of being queried), this returns
+`**[filterStrict](#autocomplete.autocompletion^config.filterStrict)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`"pending"`. Otherwise, it
-returns
+When set to true (the default is false), turn off fuzzy matching of completions and only show those that start with the text the user typed. Only takes effect for results where [`filter`](#autocomplete.CompletionResult.filter) isn't false.
 
-`null`.
+`**[interactionDelay](#autocomplete.autocompletion^config.interactionDelay)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-currentCompletions `(`state `:`EditorState `) →`readonly Completion `[]`Returns the available completions as an array.
+By default, commands relating to an open completion only take effect 75 milliseconds after the completion opened, so that key presses made before the user is aware of the tooltip don't go to the tooltip. This option can be used to configure that delay.
 
-selectedCompletion `(`state `:`EditorState `) →`Completion `|`null Return the currently selected completion, if any.
+`**[updateSyncTime](#autocomplete.autocompletion^config.updateSyncTime)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-selectedCompletionIndex `(`state `:`EditorState `) →`number `|`null Returns the currently selected position in the active completion
-list, or null if no completions are active.
+When there are multiple asynchronous completion sources, this controls how long the extension waits for a slow source before displaying results from faster sources. Defaults to 100 milliseconds.
 
-setSelectedCompletion `(`index `:`number `) →`StateEffect `<`unknown `>`Create an effect that can be attached to a transaction to change
-the currently selected completion.
+`**[completionStatus](#autocomplete.completionStatus)**([state](#autocomplete.completionStatus^state): [EditorState](#state.EditorState)) → "active" | "pending" | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-pickedCompletion `:`AnnotationType `<`Completion `>`This annotation is added to transactions that are produced by
-picking a completion.
+Get the current completion status. When completions are available, this will return `"active"`. When completions are pending (in the process of being queried), this returns `"pending"`. Otherwise, it returns `null`.
+
+`**[currentCompletions](#autocomplete.currentCompletions)**([state](#autocomplete.currentCompletions^state): [EditorState](#state.EditorState)) → readonly [Completion](#autocomplete.Completion)[]`
+
+Returns the available completions as an array.
+
+`**[selectedCompletion](#autocomplete.selectedCompletion)**([state](#autocomplete.selectedCompletion^state): [EditorState](#state.EditorState)) → [Completion](#autocomplete.Completion) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
+
+Return the currently selected completion, if any.
+
+`**[selectedCompletionIndex](#autocomplete.selectedCompletionIndex)**([state](#autocomplete.selectedCompletionIndex^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
+
+Returns the currently selected position in the active completion list, or null if no completions are active.
+
+`**[setSelectedCompletion](#autocomplete.setSelectedCompletion)**([index](#autocomplete.setSelectedCompletion^index): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [StateEffect](#state.StateEffect)<unknown>`
+
+Create an effect that can be attached to a transaction to change the currently selected completion.
+
+`**[pickedCompletion](#autocomplete.pickedCompletion)**: [AnnotationType](#state.AnnotationType)<[Completion](#autocomplete.Completion)>`
+
+This annotation is added to transactions that are produced by picking a completion.
 
 ### Sources
 
-class CompletionContext An instance of this is passed to completion source functions.
+#### `class` [CompletionContext](#autocomplete.CompletionContext)
 
-new CompletionContext `(`state : EditorState , pos : number , explicit : boolean , view ⁠?: EditorView `)`Create a new completion context. (Mostly useful for testing
-completion sources—in the editor, the extension will create
-these for you.)
+An instance of this is passed to completion source functions.
 
-state `:`EditorState The editor state that the completion happens in.
+`new **[CompletionContext](#autocomplete.CompletionContext.constructor)**(  [state](#autocomplete.CompletionContext.constructor^state): [EditorState](#state.EditorState),  [pos](#autocomplete.CompletionContext.constructor^pos): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [explicit](#autocomplete.CompletionContext.constructor^explicit): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean),  [view](#autocomplete.CompletionContext.constructor^view)⁠?: [EditorView](#view.EditorView)  )`
 
-pos `:`number The position at which the completion is happening.
+Create a new completion context. (Mostly useful for testing completion sources—in the editor, the extension will create these for you.)
 
-explicit `:`boolean Indicates whether completion was activated explicitly, or
-implicitly by typing. The usual way to respond to this is to
-only return completions when either there is part of a
-completable entity before the cursor, or
+`**[state](#autocomplete.CompletionContext.state)**: [EditorState](#state.EditorState)`
 
-`explicit`is true.
+The editor state that the completion happens in.
 
-view `⁠?:`EditorView The editor view. May be undefined if the context was created
-in a situation where there is no such view available, such as
-in synchronous updates via
+`**[pos](#autocomplete.CompletionContext.pos)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`CompletionResult.update`or when called by test code.
+The position at which the completion is happening.
 
-tokenBefore `(`types `:`readonly string `[]) → {`from `:`number `,`to `:`number `,`text `:`string `,`type `:`NodeType `} |`null Get the extent, content, and (if there is a token) type of the
-token before
+`**[explicit](#autocomplete.CompletionContext.explicit)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`this.pos`.
+Indicates whether completion was activated explicitly, or implicitly by typing. The usual way to respond to this is to only return completions when either there is part of a completable entity before the cursor, or `explicit` is true.
 
-matchBefore `(`expr `:`RegExp `) → {`from `:`number `,`to `:`number `,`text `:`string `} |`null Get the match of the given expression directly before the
-cursor.
+`**[view](#autocomplete.CompletionContext.view)**⁠?: [EditorView](#view.EditorView)`
 
-aborted `:`boolean Yields true when the query has been aborted. Can be useful in
-asynchronous queries to avoid doing work that will be ignored.
+The editor view. May be undefined if the context was created in a situation where there is no such view available, such as in synchronous updates via [`CompletionResult.update`](#autocomplete.CompletionResult.update) or when called by test code.
 
-addEventListener `(`type : "abort" , listener : fn (), options ⁠?: { onDocChange : boolean } `)`Allows you to register abort handlers, which will be called when
-the query is
+`**[tokenBefore](#autocomplete.CompletionContext.tokenBefore)**([types](#autocomplete.CompletionContext.tokenBefore^types): readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), text: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), type: [NodeType](https://lezer.codemirror.net/docs/ref/#common.NodeType)} |  [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  `
 
-aborted .
+Get the extent, content, and (if there is a token) type of the token before `this.pos`.
 
-By default, running queries will not be aborted for regular
-typing or backspacing, on the assumption that they are likely to
-return a result with a
+`**[matchBefore](#autocomplete.CompletionContext.matchBefore)**([expr](#autocomplete.CompletionContext.matchBefore^expr): [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp)) → {from: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), to: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), text: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)} | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`validFor`field that
-allows the result to be used after all. Passing
+Get the match of the given expression directly before the cursor.
 
-`onDocChange: true`will cause this query to be aborted for any document
-change.
+`**[aborted](#autocomplete.CompletionContext.aborted)**: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-interface CompletionResult Interface for objects returned by completion sources.
+Yields true when the query has been aborted. Can be useful in asynchronous queries to avoid doing work that will be ignored.
 
-from `:`number The start of the range that is being completed.
+`**[addEventListener](#autocomplete.CompletionContext.addEventListener)**(  [type](#autocomplete.CompletionContext.addEventListener^type): "abort",  [listener](#autocomplete.CompletionContext.addEventListener^listener): fn(),  [options](#autocomplete.CompletionContext.addEventListener^options)⁠?: {onDocChange: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)}  )`
 
-to `⁠?:`number The end of the range that is being completed. Defaults to the
-main cursor position.
+Allows you to register abort handlers, which will be called when the query is [aborted](#autocomplete.CompletionContext.aborted).
 
-options `:`readonly Completion `[]`The completions returned. These don't have to be compared with
-the input by the source—the autocompletion system will do its
-own matching (against the text between
+By default, running queries will not be aborted for regular typing or backspacing, on the assumption that they are likely to return a result with a [`validFor`](#autocomplete.CompletionResult.validFor) field that allows the result to be used after all. Passing `onDocChange: true` will cause this query to be aborted for any document change.
 
-`from`and
+#### `interface` [CompletionResult](#autocomplete.CompletionResult)
 
-`to`) and
-sorting.
+Interface for objects returned by completion sources.
 
-validFor `⁠?:`RegExp `|`fn ( text : string , from : number , to : number , state : EditorState ) → boolean When given, further typing or deletion that causes the part of
-the document between (
+`**[from](#autocomplete.CompletionResult.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-mapped )
+The start of the range that is being completed.
 
-`from`and
+`**[to](#autocomplete.CompletionResult.to)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-`to`to match this regular expression or predicate function
-will not query the completion source again, but continue with
-this list of options. This can help a lot with responsiveness,
-since it allows the completion list to be updated synchronously.
+The end of the range that is being completed. Defaults to the main cursor position.
 
-filter `⁠?:`boolean By default, the library filters and scores completions. Set
+`**[options](#autocomplete.CompletionResult.options)**: readonly [Completion](#autocomplete.Completion)[]`
 
-`filter`to
+The completions returned. These don't have to be compared with the input by the source—the autocompletion system will do its own matching (against the text between `from` and `to`) and sorting.
 
-`false`to disable this, and cause your completions
-to all be included, in the order they were given. When there are
-other sources, unfiltered completions appear at the top of the
-list of completions.
+`**[validFor](#autocomplete.CompletionResult.validFor)**⁠?: [RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp) |  fn(  [text](#autocomplete.CompletionResult.validFor^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [from](#autocomplete.CompletionResult.validFor^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#autocomplete.CompletionResult.validFor^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [state](#autocomplete.CompletionResult.validFor^state): [EditorState](#state.EditorState)  ) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)  `
 
-`validFor`must not be given when
+When given, further typing or deletion that causes the part of the document between ([mapped](#state.ChangeDesc.mapPos)) `from` and `to` to match this regular expression or predicate function will not query the completion source again, but continue with this list of options. This can help a lot with responsiveness, since it allows the completion list to be updated synchronously.
 
-`filter`is
+`**[filter](#autocomplete.CompletionResult.filter)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`false`, because it only works when filtering.
+By default, the library filters and scores completions. Set `filter` to `false` to disable this, and cause your completions to all be included, in the order they were given. When there are other sources, unfiltered completions appear at the top of the list of completions. `validFor` must not be given when `filter` is `false`, because it only works when filtering.
 
-getMatch `⁠?:`fn `(`completion `:`Completion `,`matched `⁠?:`readonly number `[]) →`readonly number `[]`When
+`**[getMatch](#autocomplete.CompletionResult.getMatch)**⁠?: fn([completion](#autocomplete.CompletionResult.getMatch^completion): [Completion](#autocomplete.Completion), [matched](#autocomplete.CompletionResult.getMatch^matched)⁠?: readonly [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)[]) → readonly [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)[]`
 
-`filter`is set to
+When [`filter`](#autocomplete.CompletionResult.filter) is set to `false` or a completion has a [`displayLabel`](#autocomplete.Completion.displayLabel), this may be provided to compute the ranges on the label that match the input. Should return an array of numbers where each pair of adjacent numbers provide the start and end of a range. The second argument, the match found by the library, is only passed when `filter` isn't `false`.
 
-`false`or a completion has a
+`**[update](#autocomplete.CompletionResult.update)**⁠?: fn(  [current](#autocomplete.CompletionResult.update^current): [CompletionResult](#autocomplete.CompletionResult),  [from](#autocomplete.CompletionResult.update^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#autocomplete.CompletionResult.update^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [context](#autocomplete.CompletionResult.update^context): [CompletionContext](#autocomplete.CompletionContext)  ) → [CompletionResult](#autocomplete.CompletionResult) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`displayLabel`, this
-may be provided to compute the ranges on the label that match
-the input. Should return an array of numbers where each pair of
-adjacent numbers provide the start and end of a range. The
-second argument, the match found by the library, is only passed
-when
+Synchronously update the completion result after typing or deletion. If given, this should not do any expensive work, since it will be called during editor state updates. The function should make sure (similar to [`validFor`](#autocomplete.CompletionResult.validFor)) that the completion still applies in the new state.
 
-`filter`isn't
+`**[map](#autocomplete.CompletionResult.map)**⁠?: fn([current](#autocomplete.CompletionResult.map^current): [CompletionResult](#autocomplete.CompletionResult), [changes](#autocomplete.CompletionResult.map^changes): [ChangeDesc](#state.ChangeDesc)) → [CompletionResult](#autocomplete.CompletionResult) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-`false`.
+When results contain position-dependent information in, for example, `apply` methods, you can provide this method to update the result for transactions that happen after the query. It is not necessary to update `from` and `to`—those are tracked automatically.
 
-update `⁠?:`fn `(`current : CompletionResult , from : number , to : number , context : CompletionContext `) →`CompletionResult `|`null Synchronously update the completion result after typing or
-deletion. If given, this should not do any expensive work, since
-it will be called during editor state updates. The function
-should make sure (similar to
+`**[commitCharacters](#autocomplete.CompletionResult.commitCharacters)**⁠?: readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-`validFor`) that the
-completion still applies in the new state.
+Set a default set of [commit characters](#autocomplete.Completion.commitCharacters) for all options in this result.
 
-map `⁠?:`fn `(`current `:`CompletionResult `,`changes `:`ChangeDesc `) →`CompletionResult `|`null When results contain position-dependent information in, for
-example,
+`type **[CompletionSource](#autocomplete.CompletionSource)** = fn([context](#autocomplete.CompletionSource^context): [CompletionContext](#autocomplete.CompletionContext)) → [CompletionResult](#autocomplete.CompletionResult) |  [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<[CompletionResult](#autocomplete.CompletionResult) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)> |  [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)  `
 
-`apply`methods, you can provide this method to update
-the result for transactions that happen after the query. It is
-not necessary to update
+The function signature for a completion source. Such a function may return its [result](#autocomplete.CompletionResult) synchronously or as a promise. Returning null indicates no completions are available.
 
-`from`and
+`**[completeFromList](#autocomplete.completeFromList)**([list](#autocomplete.completeFromList^list): readonly ([string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) | [Completion](#autocomplete.Completion))[]) → [CompletionSource](#autocomplete.CompletionSource)`
 
-`to`—those are tracked
-automatically.
+Given a a fixed array of options, return an autocompleter that completes them.
 
-commitCharacters `⁠?:`readonly string `[]`Set a default set of
+`**[ifIn](#autocomplete.ifIn)**([nodes](#autocomplete.ifIn^nodes): readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[], [source](#autocomplete.ifIn^source): [CompletionSource](#autocomplete.CompletionSource)) → [CompletionSource](#autocomplete.CompletionSource)`
 
-commit
-characters for all
-options in this result.
+Wrap the given completion source so that it will only fire when the cursor is in a syntax node with one of the given names.
 
-type CompletionSource `=`fn `(`context `:`CompletionContext `) →`CompletionResult `|`Promise < CompletionResult | null > | null The function signature for a completion source. Such a function
-may return its
+`**[ifNotIn](#autocomplete.ifNotIn)**([nodes](#autocomplete.ifNotIn^nodes): readonly [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[], [source](#autocomplete.ifNotIn^source): [CompletionSource](#autocomplete.CompletionSource)) → [CompletionSource](#autocomplete.CompletionSource)`
 
-result synchronously or as a promise. Returning null indicates no
-completions are available.
+Wrap the given completion source so that it will not fire when the cursor is in a syntax node with one of the given names.
 
-completeFromList `(`list `:`readonly `(`string `|`Completion `)[]) →`CompletionSource Given a a fixed array of options, return an autocompleter that
-completes them.
+`**[completeAnyWord](#autocomplete.completeAnyWord)**: [CompletionSource](#autocomplete.CompletionSource)`
 
-ifIn `(`nodes `:`readonly string `[],`source `:`CompletionSource `) →`CompletionSource Wrap the given completion source so that it will only fire when the
-cursor is in a syntax node with one of the given names.
+A completion source that will scan the document for words (using a [character categorizer](#state.EditorState.charCategorizer)), and return those as completions.
 
-ifNotIn `(`nodes `:`readonly string `[],`source `:`CompletionSource `) →`CompletionSource Wrap the given completion source so that it will not fire when the
-cursor is in a syntax node with one of the given names.
+`**[insertCompletionText](#autocomplete.insertCompletionText)**(  [state](#autocomplete.insertCompletionText^state): [EditorState](#state.EditorState),  [text](#autocomplete.insertCompletionText^text): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String),  [from](#autocomplete.insertCompletionText^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#autocomplete.insertCompletionText^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  ) → [TransactionSpec](#state.TransactionSpec)`
 
-completeAnyWord `:`CompletionSource A completion source that will scan the document for words (using a
-
-character categorizer ), and
-return those as completions.
-
-insertCompletionText `(`state : EditorState , text : string , from : number , to : number `) →`TransactionSpec Helper function that returns a transaction spec which inserts a
-completion's text in the main selection range, and any other
-selection range that has the same text in front of it.
+Helper function that returns a transaction spec which inserts a completion's text in the main selection range, and any other selection range that has the same text in front of it.
 
 ### Commands
 
-startCompletion `:`Command Explicitly start autocompletion.
+`**[startCompletion](#autocomplete.startCompletion)**: [Command](#view.Command)`
 
-closeCompletion `:`Command Close the currently active completion.
+Explicitly start autocompletion.
 
-acceptCompletion `:`Command Accept the current completion.
+`**[closeCompletion](#autocomplete.closeCompletion)**: [Command](#view.Command)`
 
-moveCompletionSelection `(`forward `:`boolean `,`by `⁠?:`"option" `|`"page" = "option" `) →`Command Returns a command that moves the completion selection forward or
-backward by the given amount.
+Close the currently active completion.
 
-completionKeymap `:`readonly KeyBinding `[]`Basic keybindings for autocompletion.
+`**[acceptCompletion](#autocomplete.acceptCompletion)**: [Command](#view.Command)`
 
-- Ctrl-Space (and Alt-` on macOS):
-`startCompletion`- Escape:
-`closeCompletion`- ArrowDown:
-`moveCompletionSelection``(true)`- ArrowUp:
-`moveCompletionSelection``(false)`- PageDown:
-`moveCompletionSelection``(true, "page")`- PageDown:
-`moveCompletionSelection``(true, "page")`- Enter:
-`acceptCompletion`### Snippets
+Accept the current completion.
 
-snippet `(`template `:`string `) →`fn `(`editor : { state : EditorState , dispatch : fn ( tr : Transaction )}, completion : Completion | null , from : number , to : number `)`Convert a snippet template to a function that can
+`**[moveCompletionSelection](#autocomplete.moveCompletionSelection)**([forward](#autocomplete.moveCompletionSelection^forward): [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean), [by](#autocomplete.moveCompletionSelection^by)⁠?: "option" | "page" = "option") → [Command](#view.Command)`
 
-apply it. Snippets are written
-using syntax like this:
+Returns a command that moves the completion selection forward or backward by the given amount.
 
-`"for (let ${index} = 0; ${index} < ${end}; ${index}++) {\n\t${}\n}"`Each
+`**[completionKeymap](#autocomplete.completionKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-`${}`placeholder (you may also use
+Basic keybindings for autocompletion.
 
-`#{}`) indicates a field
-that the user can fill in. Its name, if any, will be the default
-content for the field.
+- Ctrl-Space (and Alt-\` on macOS): [`startCompletion`](#autocomplete.startCompletion)
+- Escape: [`closeCompletion`](#autocomplete.closeCompletion)
+- ArrowDown: [`moveCompletionSelection`](#autocomplete.moveCompletionSelection)`(true)`
+- ArrowUp: [`moveCompletionSelection`](#autocomplete.moveCompletionSelection)`(false)`
+- PageDown: [`moveCompletionSelection`](#autocomplete.moveCompletionSelection)`(true, "page")`
+- PageDown: [`moveCompletionSelection`](#autocomplete.moveCompletionSelection)`(true, "page")`
+- Enter: [`acceptCompletion`](#autocomplete.acceptCompletion)
 
-When the snippet is activated by calling the returned function,
-the code is inserted at the given position. Newlines in the
-template are indented by the indentation of the start line, plus
-one
+### Snippets
 
-indent unit per tab character after
-the newline.
+`**[snippet](#autocomplete.snippet)**([template](#autocomplete.snippet^template): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → fn(  [editor](#autocomplete.snippet^returns^editor): {state: [EditorState](#state.EditorState), dispatch: fn([tr](#autocomplete.snippet^returns^editor.dispatch^tr): [Transaction](#state.Transaction))},  [completion](#autocomplete.snippet^returns^completion): [Completion](#autocomplete.Completion) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null),  [from](#autocomplete.snippet^returns^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number),  [to](#autocomplete.snippet^returns^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)  )`
 
-On activation, (all instances of) the first field are selected.
-The user can move between fields with Tab and Shift-Tab as long as
-the fields are active. Moving to the last field or moving the
-cursor out of the current field deactivates the fields.
+Convert a snippet template to a function that can [apply](#autocomplete.Completion.apply) it. Snippets are written using syntax like this:
 
-The order of fields defaults to textual order, but you can add
-numbers to placeholders (
+    "for (let ${index} = 0; ${index} < ${end}; ${index}++) {\n\t${}\n}"
 
-`${1}`or
+Each `${}` placeholder (you may also use `#{}`) indicates a field that the user can fill in. Its name, if any, will be the default content for the field.
 
-`${1:defaultText}`) to provide
-a custom order.
+When the snippet is activated by calling the returned function, the code is inserted at the given position. Newlines in the template are indented by the indentation of the start line, plus one [indent unit](#language.indentUnit) per tab character after the newline.
 
-To include a literal
+On activation, (all instances of) the first field are selected. The user can move between fields with Tab and Shift-Tab as long as the fields are active. Moving to the last field or moving the cursor out of the current field deactivates the fields.
 
-`{`or
+The order of fields defaults to textual order, but you can add numbers to placeholders (`${1}` or `${1:defaultText}`) to provide a custom order.
 
-`}`in your template, put a backslash
-in front of it. This will be removed and the brace will not be
-interpreted as indicating a placeholder.
+To include a literal `{` or `}` in your template, put a backslash in front of it. This will be removed and the brace will not be interpreted as indicating a placeholder.
 
-snippetCompletion `(`template `:`string `,`completion `:`Completion `) →`Completion Create a completion from a snippet. Returns an object with the
-properties from
+`**[snippetCompletion](#autocomplete.snippetCompletion)**([template](#autocomplete.snippetCompletion^template): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String), [completion](#autocomplete.snippetCompletion^completion): [Completion](#autocomplete.Completion)) → [Completion](#autocomplete.Completion)`
 
-`completion`, plus an
+Create a completion from a snippet. Returns an object with the properties from `completion`, plus an `apply` function that applies the snippet.
 
-`apply`function that
-applies the snippet.
+`**[nextSnippetField](#autocomplete.nextSnippetField)**: [StateCommand](#state.StateCommand)`
 
-nextSnippetField `:`StateCommand Move to the next snippet field, if available.
+Move to the next snippet field, if available.
 
-hasNextSnippetField `(`state `:`EditorState `) →`boolean Check if there is an active snippet with a next field for
+`**[hasNextSnippetField](#autocomplete.hasNextSnippetField)**([state](#autocomplete.hasNextSnippetField^state): [EditorState](#state.EditorState)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`nextSnippetField`to move to.
+Check if there is an active snippet with a next field for `nextSnippetField` to move to.
 
-prevSnippetField `:`StateCommand Move to the previous snippet field, if available.
+`**[prevSnippetField](#autocomplete.prevSnippetField)**: [StateCommand](#state.StateCommand)`
 
-hasPrevSnippetField `(`state `:`EditorState `) →`boolean Returns true if there is an active snippet and a previous field
-for
+Move to the previous snippet field, if available.
 
-`prevSnippetField`to move to.
+`**[hasPrevSnippetField](#autocomplete.hasPrevSnippetField)**([state](#autocomplete.hasPrevSnippetField^state): [EditorState](#state.EditorState)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-clearSnippet `:`StateCommand A command that clears the active snippet, if any.
+Returns true if there is an active snippet and a previous field for `prevSnippetField` to move to.
 
-snippetKeymap `:`Facet `<`readonly KeyBinding `[],`readonly KeyBinding `[]>`A facet that can be used to configure the key bindings used by
-snippets. The default binds Tab to
+`**[clearSnippet](#autocomplete.clearSnippet)**: [StateCommand](#state.StateCommand)`
 
-`nextSnippetField`, Shift-Tab to
+A command that clears the active snippet, if any.
 
-`prevSnippetField`, and Escape
-to
+`**[snippetKeymap](#autocomplete.snippetKeymap)**: [Facet](#state.Facet)<readonly [KeyBinding](#view.KeyBinding)[], readonly [KeyBinding](#view.KeyBinding)[]>`
 
-`clearSnippet`.
+A facet that can be used to configure the key bindings used by snippets. The default binds Tab to [`nextSnippetField`](#autocomplete.nextSnippetField), Shift-Tab to [`prevSnippetField`](#autocomplete.prevSnippetField), and Escape to [`clearSnippet`](#autocomplete.clearSnippet).
 
 ### Automatic Bracket Closing
 
-interface CloseBracketConfig Configures bracket closing behavior for a syntax (via
+#### `interface` [CloseBracketConfig](#autocomplete.CloseBracketConfig)
 
-language data ) using the
+Configures bracket closing behavior for a syntax (via [language data](#state.EditorState.languageDataAt)) using the `"closeBrackets"` identifier.
 
-`"closeBrackets"`identifier.
+`**[brackets](#autocomplete.CloseBracketConfig.brackets)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-brackets `⁠?:`string `[]`The opening brackets to close. Defaults to
+The opening brackets to close. Defaults to `["(", "[", "{", "'", '"']`. Brackets may be single characters or a triple of quotes (as in `"'''"`).
 
-`["(", "[", "{", "'", '"']`. Brackets may be single characters or a triple of quotes
-(as in
+`**[before](#autocomplete.CloseBracketConfig.before)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`"'''"`).
+Characters in front of which newly opened brackets are automatically closed. Closing always happens in front of whitespace. Defaults to `")]}:;>"`.
 
-before `⁠?:`string Characters in front of which newly opened brackets are
-automatically closed. Closing always happens in front of
-whitespace. Defaults to
+`**[stringPrefixes](#autocomplete.CloseBracketConfig.stringPrefixes)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)[]`
 
-`")]}:;>"`.
+When determining whether a given node may be a string, recognize these prefixes before the opening quote.
 
-stringPrefixes `⁠?:`string `[]`When determining whether a given node may be a string, recognize
-these prefixes before the opening quote.
+`**[closeBrackets](#autocomplete.closeBrackets)**() → [Extension](#state.Extension)`
 
-closeBrackets `() →`Extension Extension to enable bracket-closing behavior. When a closeable
-bracket is typed, its closing bracket is immediately inserted
-after the cursor. When closing a bracket directly in front of a
-closing bracket inserted by the extension, the cursor moves over
-that bracket.
+Extension to enable bracket-closing behavior. When a closeable bracket is typed, its closing bracket is immediately inserted after the cursor. When closing a bracket directly in front of a closing bracket inserted by the extension, the cursor moves over that bracket.
 
-closeBracketsKeymap `:`readonly KeyBinding `[]`Close-brackets related key bindings. Binds Backspace to
+`**[closeBracketsKeymap](#autocomplete.closeBracketsKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-`deleteBracketPair`.
+Close-brackets related key bindings. Binds Backspace to [`deleteBracketPair`](#autocomplete.deleteBracketPair).
 
-deleteBracketPair `:`StateCommand Command that implements deleting a pair of matching brackets when
-the cursor is between them.
+`**[deleteBracketPair](#autocomplete.deleteBracketPair)**: [StateCommand](#state.StateCommand)`
 
-insertBracket `(`state `:`EditorState `,`bracket `:`string `) →`Transaction `|`null Implements the extension's behavior on text insertion. If the
-given string counts as a bracket in the language around the
-selection, and replacing the selection with it requires custom
-behavior (inserting a closing version or skipping past a
-previously-closed bracket), this function returns a transaction
-representing that custom behavior. (You only need this if you want
-to programmatically insert brackets—the
+Command that implements deleting a pair of matching brackets when the cursor is between them.
 
-`closeBrackets`extension will
-take care of running this for user input.)
+`**[insertBracket](#autocomplete.insertBracket)**([state](#autocomplete.insertBracket^state): [EditorState](#state.EditorState), [bracket](#autocomplete.insertBracket^bracket): [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)) → [Transaction](#state.Transaction) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-@codemirror/ lint lintKeymap `:`readonly KeyBinding `[]`A set of default key bindings for the lint functionality.
+Implements the extension's behavior on text insertion. If the given string counts as a bracket in the language around the selection, and replacing the selection with it requires custom behavior (inserting a closing version or skipping past a previously-closed bracket), this function returns a transaction representing that custom behavior. (You only need this if you want to programmatically insert brackets—the [`closeBrackets`](#autocomplete.closeBrackets) extension will take care of running this for user input.)
 
-- Ctrl-Shift-m (Cmd-Shift-m on macOS):
-`openLintPanel`- F8:
-`nextDiagnostic`interface Diagnostic Describes a problem or hint for a piece of code.
+## [@codemirror/lint](#lint)
 
-from `:`number The start position of the relevant text.
+`**[lintKeymap](#lint.lintKeymap)**: readonly [KeyBinding](#view.KeyBinding)[]`
 
-to `:`number The end position. May be equal to
+A set of default key bindings for the lint functionality.
 
-`from`, though actually
-covering text is preferable.
+- Ctrl-Shift-m (Cmd-Shift-m on macOS): [`openLintPanel`](#lint.openLintPanel)
+- F8: [`nextDiagnostic`](#lint.nextDiagnostic)
 
-severity `:`"error" `|`"hint" `|`"info" `|`"warning" The severity of the problem. This will influence how it is
-displayed.
+#### `interface` [Diagnostic](#lint.Diagnostic)
 
-markClass `⁠?:`string When given, add an extra CSS class to parts of the code that
-this diagnostic applies to.
+Describes a problem or hint for a piece of code.
 
-source `⁠?:`string An optional source string indicating where the diagnostic is
-coming from. You can put the name of your linter here, if
-applicable.
+`**[from](#lint.Diagnostic.from)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-message `:`string The message associated with this diagnostic.
+The start position of the relevant text.
 
-renderMessage `⁠?:`fn `(`view `:`EditorView `) →`Node An optional custom rendering function that displays the message
-as a DOM node.
+`**[to](#lint.Diagnostic.to)**: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-actions `⁠?:`readonly Action `[]`An optional array of actions that can be taken on this
-diagnostic.
+The end position. May be equal to `from`, though actually covering text is preferable.
 
-interface Action An action associated with a diagnostic.
+`**[severity](#lint.Diagnostic.severity)**: "error" | "hint" | "info" | "warning"`
 
-name `:`string The label to show to the user. Should be relatively short.
+The severity of the problem. This will influence how it is displayed.
 
-apply `(`view `:`EditorView `,`from `:`number `,`to `:`number `)`The function to call when the user activates this action. Is
-given the diagnostic's
+`**[markClass](#lint.Diagnostic.markClass)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-current position, which may have
-changed since the creation of the diagnostic, due to editing.
+When given, add an extra CSS class to parts of the code that this diagnostic applies to.
 
-linter `(`source `:`LintSource `|`null `,`config `⁠?:`Object = {} `) →`Extension Given a diagnostic source, this function returns an extension that
-enables linting with that source. It will be called whenever the
-editor is idle (after its content changed). If
+`**[source](#lint.Diagnostic.source)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-`null`is given as
-source, this only configures the lint extension.
+An optional source string indicating where the diagnostic is coming from. You can put the name of your linter here, if applicable.
 
-config delay `⁠?:`number Time to wait (in milliseconds) after a change before running
-the linter. Defaults to 750ms.
+`**[message](#lint.Diagnostic.message)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-needsRefresh `⁠?:`fn `(`update `:`ViewUpdate `) →`boolean Optional predicate that can be used to indicate when diagnostics
-need to be recomputed. Linting is always re-done on document
-changes.
+The message associated with this diagnostic.
 
-markerFilter `⁠?:`fn `(`diagnostics : readonly Diagnostic [], state : EditorState `) →`Diagnostic `[]`Optional filter to determine which diagnostics produce markers
-in the content.
+`**[renderMessage](#lint.Diagnostic.renderMessage)**⁠?: fn([view](#lint.Diagnostic.renderMessage^view): [EditorView](#view.EditorView)) → [Node](https://developer.mozilla.org/en/docs/DOM/Node)`
 
-tooltipFilter `⁠?:`fn `(`diagnostics : readonly Diagnostic [], state : EditorState `) →`Diagnostic `[]`Filter applied to a set of diagnostics shown in a tooltip. No
-tooltip will appear if the empty set is returned.
+An optional custom rendering function that displays the message as a DOM node.
 
-hideOn `⁠?:`fn `(`tr `:`Transaction `,`from `:`number `,`to `:`number `) →`boolean `|`null Can be used to control what kind of transactions cause lint
-hover tooltips associated with the given document range to be
-hidden. By default any transactions that changes the line
-around the range will hide it. Returning null falls back to this
-behavior.
+`**[actions](#lint.Diagnostic.actions)**⁠?: readonly [Action](#lint.Action)[]`
 
-autoPanel `⁠?:`boolean When enabled (defaults to off), this will cause the lint panel
-to automatically open when diagnostics are found, and close when
-all diagnostics are resolved or removed.
+An optional array of actions that can be taken on this diagnostic.
 
-type LintSource `=`fn `(`view `:`EditorView `) →`readonly Diagnostic `[] |`Promise < readonly Diagnostic []> The type of a function that produces diagnostics.
+#### `interface` [Action](#lint.Action)
 
-diagnosticCount `(`state `:`EditorState `) →`number Returns the number of active lint diagnostics in the given state.
+An action associated with a diagnostic.
 
-forceLinting `(`view `:`EditorView `)`Forces any linters
+`**[name](#lint.Action.name)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
 
-configured to run when the
-editor is idle to run right away.
+The label to show to the user. Should be relatively short.
 
-openLintPanel `:`Command Command to open and focus the lint panel.
+`**[apply](#lint.Action.apply)**([view](#lint.Action.apply^view): [EditorView](#view.EditorView), [from](#lint.Action.apply^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#lint.Action.apply^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))`
 
-closeLintPanel `:`Command Command to close the lint panel, when open.
+The function to call when the user activates this action. Is given the diagnostic's _current_ position, which may have changed since the creation of the diagnostic, due to editing.
 
-nextDiagnostic `:`Command Move the selection to the next diagnostic.
+`**[linter](#lint.linter)**([source](#lint.linter^source): [LintSource](#lint.LintSource) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null), [config](#lint.linter^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-previousDiagnostic `:`Command Move the selection to the previous diagnostic.
+Given a diagnostic source, this function returns an extension that enables linting with that source. It will be called whenever the editor is idle (after its content changed). If `null` is given as source, this only configures the lint extension.
 
-setDiagnostics `(`state : EditorState , diagnostics : readonly Diagnostic [] `) →`TransactionSpec Returns a transaction spec which updates the current set of
-diagnostics, and enables the lint extension if if wasn't already
-active.
+`**[config](#lint.linter^config)**`
 
-setDiagnosticsEffect `:`StateEffectType `<`readonly Diagnostic `[]>`The state effect that updates the set of active diagnostics. Can
-be useful when writing an extension that needs to track these.
+`**[delay](#lint.linter^config.delay)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-forEachDiagnostic `(`state : EditorState , f : fn ( d : Diagnostic , from : number , to : number ) `)`Iterate over the marked diagnostics for the given editor state,
-calling
+Time to wait (in milliseconds) after a change before running the linter. Defaults to 750ms.
 
-`f`for each of them. Note that, if the document changed
-since the diagnostics were created, the
+`**[needsRefresh](#lint.linter^config.needsRefresh)**⁠?: fn([update](#lint.linter^config.needsRefresh^update): [ViewUpdate](#view.ViewUpdate)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-`Diagnostic`object will
-hold the original outdated position, whereas the
+Optional predicate that can be used to indicate when diagnostics need to be recomputed. Linting is always re-done on document changes.
 
-`to`and
+`**[markerFilter](#lint.linter^config.markerFilter)**⁠?: fn(  [diagnostics](#lint.linter^config.markerFilter^diagnostics): readonly [Diagnostic](#lint.Diagnostic)[],  [state](#lint.linter^config.markerFilter^state): [EditorState](#state.EditorState)  ) → [Diagnostic](#lint.Diagnostic)[]`
 
-`from`arguments hold the diagnostic's current position.
+Optional filter to determine which diagnostics produce markers in the content.
 
-lintGutter `(`config `⁠?:`Object = {} `) →`Extension Returns an extension that installs a gutter showing markers for
-each line that has diagnostics, which can be hovered over to see
-the diagnostics.
+`**[tooltipFilter](#lint.linter^config.tooltipFilter)**⁠?: fn(  [diagnostics](#lint.linter^config.tooltipFilter^diagnostics): readonly [Diagnostic](#lint.Diagnostic)[],  [state](#lint.linter^config.tooltipFilter^state): [EditorState](#state.EditorState)  ) → [Diagnostic](#lint.Diagnostic)[]`
 
-config hoverTime `⁠?:`number The delay before showing a tooltip when hovering over a lint gutter marker.
+Filter applied to a set of diagnostics shown in a tooltip. No tooltip will appear if the empty set is returned.
 
-markerFilter `⁠?:`fn `(`diagnostics : readonly Diagnostic [], state : EditorState `) →`Diagnostic `[]`Optional filter determining which diagnostics show a marker in
-the gutter.
+`**[hideOn](#lint.linter^config.hideOn)**⁠?: fn([tr](#lint.linter^config.hideOn^tr): [Transaction](#state.Transaction), [from](#lint.linter^config.hideOn^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#lint.linter^config.hideOn^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)) → [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean) | [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)`
 
-tooltipFilter `⁠?:`fn `(`diagnostics : readonly Diagnostic [], state : EditorState `) →`Diagnostic `[]`Optional filter for diagnostics displayed in a tooltip, which
-can also be used to prevent a tooltip appearing.
+Can be used to control what kind of transactions cause lint hover tooltips associated with the given document range to be hidden. By default any transactions that changes the line around the range will hide it. Returning null falls back to this behavior.
 
-@codemirror/ collab This package provides the scaffolding for basic operational-transform
-based collaborative editing. When it is enabled, the editor will
-accumulate
+`**[autoPanel](#lint.linter^config.autoPanel)**⁠?: [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)`
 
-local changes , which can be sent
-to a central service. When new changes are received from the service,
-they can be applied to the state with
+When enabled (defaults to off), this will cause the lint panel to automatically open when diagnostics are found, and close when all diagnostics are resolved or removed.
 
-`receiveUpdates`.
+`type **[LintSource](#lint.LintSource)** = fn([view](#lint.LintSource^view): [EditorView](#view.EditorView)) → readonly [Diagnostic](#lint.Diagnostic)[] |  [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)<readonly [Diagnostic](#lint.Diagnostic)[]>  `
 
-See the
+The type of a function that produces diagnostics.
 
-collaborative editing example for a
-more detailed description of the protocol.
+`**[diagnosticCount](#lint.diagnosticCount)**([state](#lint.diagnosticCount^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
 
-collab `(`config `⁠?:`Object = {} `) →`Extension Create an instance of the collaborative editing plugin.
+Returns the number of active lint diagnostics in the given state.
 
-config startVersion `⁠?:`number The starting document version. Defaults to 0.
+`**[forceLinting](#lint.forceLinting)**([view](#lint.forceLinting^view): [EditorView](#view.EditorView))`
 
-clientID `⁠?:`string This client's identifying
+Forces any linters [configured](#lint.linter) to run when the editor is idle to run right away.
 
-ID . Will be a
-randomly generated string if not provided.
+`**[openLintPanel](#lint.openLintPanel)**: [Command](#view.Command)`
 
-sharedEffects `⁠?:`fn `(`tr `:`Transaction `) →`readonly StateEffect `<`any `>[]`It is possible to share information other than document changes
-through this extension. If you provide this option, your
-function will be called on each transaction, and the effects it
-returns will be sent to the server, much like changes are. Such
-effects are automatically remapped when conflicting remote
-changes come in.
+Command to open and focus the lint panel.
 
-interface Update An update is a set of changes and effects.
+`**[closeLintPanel](#lint.closeLintPanel)**: [Command](#view.Command)`
 
-changes `:`ChangeSet The changes made by this update.
+Command to close the lint panel, when open.
 
-effects `⁠?:`readonly StateEffect `<`any `>[]`The effects in this update. There'll only ever be effects here
-when you configure your collab extension with a
+`**[nextDiagnostic](#lint.nextDiagnostic)**: [Command](#view.Command)`
 
-`sharedEffects`option.
+Move the selection to the next diagnostic.
 
-clientID `:`string The
+`**[previousDiagnostic](#lint.previousDiagnostic)**: [Command](#view.Command)`
 
-ID of the client who
-created this update.
+Move the selection to the previous diagnostic.
 
-receiveUpdates `(`state `:`EditorState `,`updates `:`readonly Update `[]) →`Transaction Create a transaction that represents a set of new updates received
-from the authority. Applying this transaction moves the state
-forward to adjust to the authority's view of the document.
+`**[setDiagnostics](#lint.setDiagnostics)**(  [state](#lint.setDiagnostics^state): [EditorState](#state.EditorState),  [diagnostics](#lint.setDiagnostics^diagnostics): readonly [Diagnostic](#lint.Diagnostic)[]  ) → [TransactionSpec](#state.TransactionSpec)`
 
-sendableUpdates `(`state `:`EditorState `) →`readonly `(`Update `& {`origin `:`Transaction `})[]`Returns the set of locally made updates that still have to be sent
-to the authority. The returned objects will also have an
+Returns a transaction spec which updates the current set of diagnostics, and enables the lint extension if if wasn't already active.
 
-`origin`property that points at the transaction that created them. This
-may be useful if you want to send along metadata like timestamps.
-(But note that the updates may have been mapped in the meantime,
-whereas the transaction is just the original transaction that
-created them.)
+`**[setDiagnosticsEffect](#lint.setDiagnosticsEffect)**: [StateEffectType](#state.StateEffectType)<readonly [Diagnostic](#lint.Diagnostic)[]>`
 
-rebaseUpdates `(`updates : readonly Update [], over : readonly { changes : ChangeDesc , clientID : string }[] `) →`readonly Update `[]`Rebase and deduplicate an array of client-submitted updates that
-came in with an out-of-date version number.
+The state effect that updates the set of active diagnostics. Can be useful when writing an extension that needs to track these.
 
-`over`should hold the
-updates that were accepted since the given version (or at least
-their change descs and client IDs). Will return an array of
-updates that, firstly, has updates that were already accepted
-filtered out, and secondly, has been moved over the other changes
-so that they apply to the current document version.
+`**[forEachDiagnostic](#lint.forEachDiagnostic)**(  [state](#lint.forEachDiagnostic^state): [EditorState](#state.EditorState),  [f](#lint.forEachDiagnostic^f): fn([d](#lint.forEachDiagnostic^f^d): [Diagnostic](#lint.Diagnostic), [from](#lint.forEachDiagnostic^f^from): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number), [to](#lint.forEachDiagnostic^f^to): [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number))  )`
 
-getSyncedVersion `(`state `:`EditorState `) →`number Get the version up to which the collab plugin has synced with the
-central authority.
+Iterate over the marked diagnostics for the given editor state, calling `f` for each of them. Note that, if the document changed since the diagnostics were created, the `Diagnostic` object will hold the original outdated position, whereas the `to` and `from` arguments hold the diagnostic's current position.
 
-getClientID `(`state `:`EditorState `) →`string Get this editor's collaborative editing client ID.
+`**[lintGutter](#lint.lintGutter)**([config](#lint.lintGutter^config)⁠?: Object = {}) → [Extension](#state.Extension)`
 
-@codemirror/ language-data languages `:`LanguageDescription `[]`An array of language descriptions for known language packages.
+Returns an extension that installs a gutter showing markers for each line that has diagnostics, which can be hovered over to see the diagnostics.
 
-codemirror This package depends on most of the core library packages and exports
-extension bundles to help set up a simple editor in a few lines of
-code.
+`**[config](#lint.lintGutter^config)**`
 
-basicSetup `:`Extension This is an extension value that just pulls together a number of
-extensions that you might want in a basic editor. It is meant as a
-convenient helper to quickly set up CodeMirror without installing
-and importing a lot of separate packages.
+`**[hoverTime](#lint.lintGutter^config.hoverTime)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The delay before showing a tooltip when hovering over a lint gutter marker.
+
+`**[markerFilter](#lint.lintGutter^config.markerFilter)**⁠?: fn(  [diagnostics](#lint.lintGutter^config.markerFilter^diagnostics): readonly [Diagnostic](#lint.Diagnostic)[],  [state](#lint.lintGutter^config.markerFilter^state): [EditorState](#state.EditorState)  ) → [Diagnostic](#lint.Diagnostic)[]`
+
+Optional filter determining which diagnostics show a marker in the gutter.
+
+`**[tooltipFilter](#lint.lintGutter^config.tooltipFilter)**⁠?: fn(  [diagnostics](#lint.lintGutter^config.tooltipFilter^diagnostics): readonly [Diagnostic](#lint.Diagnostic)[],  [state](#lint.lintGutter^config.tooltipFilter^state): [EditorState](#state.EditorState)  ) → [Diagnostic](#lint.Diagnostic)[]`
+
+Optional filter for diagnostics displayed in a tooltip, which can also be used to prevent a tooltip appearing.
+
+## [@codemirror/collab](#collab)
+
+This package provides the scaffolding for basic operational-transform based collaborative editing. When it is enabled, the editor will accumulate [local changes](#collab.sendableUpdates), which can be sent to a central service. When new changes are received from the service, they can be applied to the state with [`receiveUpdates`](#collab.receiveUpdates).
+
+See the [collaborative editing example](../../examples/collab) for a more detailed description of the protocol.
+
+`**[collab](#collab.collab)**([config](#collab.collab^config)⁠?: [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object) = {}) → [Extension](#state.Extension)`
+
+Create an instance of the collaborative editing plugin.
+
+`**[config](#collab.collab^config)**`
+
+`**[startVersion](#collab.collab^config.startVersion)**⁠?: [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+The starting document version. Defaults to 0.
+
+`**[clientID](#collab.collab^config.clientID)**⁠?: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+This client's identifying [ID](#collab.getClientID). Will be a randomly generated string if not provided.
+
+`**[sharedEffects](#collab.collab^config.sharedEffects)**⁠?: fn([tr](#collab.collab^config.sharedEffects^tr): [Transaction](#state.Transaction)) → readonly [StateEffect](#state.StateEffect)<any>[]`
+
+It is possible to share information other than document changes through this extension. If you provide this option, your function will be called on each transaction, and the effects it returns will be sent to the server, much like changes are. Such effects are automatically remapped when conflicting remote changes come in.
+
+#### `interface` [Update](#collab.Update)
+
+An update is a set of changes and effects.
+
+`**[changes](#collab.Update.changes)**: [ChangeSet](#state.ChangeSet)`
+
+The changes made by this update.
+
+`**[effects](#collab.Update.effects)**⁠?: readonly [StateEffect](#state.StateEffect)<any>[]`
+
+The effects in this update. There'll only ever be effects here when you configure your collab extension with a [`sharedEffects`](#collab.collab%5Econfig.sharedEffects) option.
+
+`**[clientID](#collab.Update.clientID)**: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+The [ID](#collab.collab%5Econfig.clientID) of the client who created this update.
+
+`**[receiveUpdates](#collab.receiveUpdates)**([state](#collab.receiveUpdates^state): [EditorState](#state.EditorState), [updates](#collab.receiveUpdates^updates): readonly [Update](#collab.Update)[]) → [Transaction](#state.Transaction)`
+
+Create a transaction that represents a set of new updates received from the authority. Applying this transaction moves the state forward to adjust to the authority's view of the document.
+
+`**[sendableUpdates](#collab.sendableUpdates)**([state](#collab.sendableUpdates^state): [EditorState](#state.EditorState)) → readonly ([Update](#collab.Update) & {origin: [Transaction](#state.Transaction)})[]`
+
+Returns the set of locally made updates that still have to be sent to the authority. The returned objects will also have an `origin` property that points at the transaction that created them. This may be useful if you want to send along metadata like timestamps. (But note that the updates may have been mapped in the meantime, whereas the transaction is just the original transaction that created them.)
+
+`**[rebaseUpdates](#collab.rebaseUpdates)**(  [updates](#collab.rebaseUpdates^updates): readonly [Update](#collab.Update)[],  [over](#collab.rebaseUpdates^over): readonly {changes: [ChangeDesc](#state.ChangeDesc), clientID: [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)}[]  ) → readonly [Update](#collab.Update)[]`
+
+Rebase and deduplicate an array of client-submitted updates that came in with an out-of-date version number. `over` should hold the updates that were accepted since the given version (or at least their change descs and client IDs). Will return an array of updates that, firstly, has updates that were already accepted filtered out, and secondly, has been moved over the other changes so that they apply to the current document version.
+
+`**[getSyncedVersion](#collab.getSyncedVersion)**([state](#collab.getSyncedVersion^state): [EditorState](#state.EditorState)) → [number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)`
+
+Get the version up to which the collab plugin has synced with the central authority.
+
+`**[getClientID](#collab.getClientID)**([state](#collab.getClientID^state): [EditorState](#state.EditorState)) → [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)`
+
+Get this editor's collaborative editing client ID.
+
+## [@codemirror/language-data](#language-data)
+
+`**[languages](#language-data.languages)**: [LanguageDescription](#language.LanguageDescription)[]`
+
+An array of language descriptions for known language packages.
+
+## [codemirror](#codemirror)
+
+This package depends on most of the core library packages and exports extension bundles to help set up a simple editor in a few lines of code.
+
+`**[basicSetup](#codemirror.basicSetup)**: [Extension](#state.Extension)`
+
+This is an extension value that just pulls together a number of extensions that you might want in a basic editor. It is meant as a convenient helper to quickly set up CodeMirror without installing and importing a lot of separate packages.
 
 Specifically, it includes...
 
-the default command bindings line numbers special character highlighting the undo history a fold gutter custom selection drawing drop cursor multiple selections reindentation on input the default highlight style - (as fallback)
-bracket matching bracket closing autocompletion rectangular selection - and
-crosshair cursor active line highlighting active line gutter highlighting selection match highlighting search linting (You'll probably want to add some language package to your setup
-too.)
+- [the default command bindings](#commands.defaultKeymap)
+- [line numbers](#view.lineNumbers)
+- [special character highlighting](#view.highlightSpecialChars)
+- [the undo history](#commands.history)
+- [a fold gutter](#language.foldGutter)
+- [custom selection drawing](#view.drawSelection)
+- [drop cursor](#view.dropCursor)
+- [multiple selections](#state.EditorState%5EallowMultipleSelections)
+- [reindentation on input](#language.indentOnInput)
+- [the default highlight style](#language.defaultHighlightStyle) (as fallback)
+- [bracket matching](#language.bracketMatching)
+- [bracket closing](#autocomplete.closeBrackets)
+- [autocompletion](#autocomplete.autocompletion)
+- [rectangular selection](#view.rectangularSelection) and [crosshair cursor](#view.crosshairCursor)
+- [active line highlighting](#view.highlightActiveLine)
+- [active line gutter highlighting](#view.highlightActiveLineGutter)
+- [selection match highlighting](#search.highlightSelectionMatches)
+- [search](#search.searchKeymap)
+- [linting](#lint.lintKeymap)
 
-This extension does not allow customization. The idea is that,
-once you decide you want to configure your editor more precisely,
-you take this package's source (which is just a bunch of imports
-and an array literal), copy it into your own code, and adjust it
-as desired.
+(You'll probably want to add some language package to your setup too.)
 
-minimalSetup `:`Extension A minimal set of extensions to create a functional editor. Only
-includes
+This extension does not allow customization. The idea is that, once you decide you want to configure your editor more precisely, you take this package's source (which is just a bunch of imports and an array literal), copy it into your own code, and adjust it as desired.
 
-the default keymap ,
+`**[minimalSetup](#codemirror.minimalSetup)**: [Extension](#state.Extension)`
 
-undo
-history ,
+A minimal set of extensions to create a functional editor. Only includes [the default keymap](#commands.defaultKeymap), [undo history](#commands.history), [special character highlighting](#view.highlightSpecialChars), [custom selection drawing](#view.drawSelection), and [default highlight style](#language.defaultHighlightStyle).
 
-special character
-highlighting ,
+re-export `**[EditorView](#view.EditorView)**`
 
-custom selection
-drawing , and
-
-default highlight
-style .
-
-re- export EditorView 
+[Code of Conduct](http://contributor-covenant.org/version/1/1/0/) [Report an Issue](https://github.com/codemirror/dev/issues)
