@@ -1,18 +1,43 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ExpressionBuilder from "./components/ExpressionBuilder";
-import { Metric } from "./types/expression";
+import { Metric, CustomMetric } from "./types/expression";
+
+// LocalStorage key for custom metrics
+const CUSTOM_METRICS_STORAGE_KEY = "expression_builder_custom_metrics";
 
 function App() {
   const [expression, setExpression] = useState<string>("");
   const [isValid, setIsValid] = useState<boolean>(true);
   const [result, setResult] = useState<number | undefined>();
+  const [customMetrics, setCustomMetrics] = useState<CustomMetric[]>([]);
 
-  // Example metrics
+  // Example static metrics
   const metrics: Metric[] = [
     { name: "revenue", value: 1000 },
     { name: "costs", value: 500 },
     { name: "profit_margin", value: 0.2 },
   ];
+
+  // Load custom metrics from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedMetrics = localStorage.getItem(CUSTOM_METRICS_STORAGE_KEY);
+      if (savedMetrics) {
+        setCustomMetrics(JSON.parse(savedMetrics));
+      }
+    } catch (error) {
+      console.error("Failed to load custom metrics from localStorage:", error);
+    }
+  }, []);
+
+  // Save custom metrics to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_METRICS_STORAGE_KEY, JSON.stringify(customMetrics));
+    } catch (error) {
+      console.error("Failed to save custom metrics to localStorage:", error);
+    }
+  }, [customMetrics]);
 
   const handleExpressionChange = (
     value: string,
@@ -22,6 +47,34 @@ function App() {
     setExpression(value);
     setIsValid(valid);
     setResult(evaluatedResult);
+  };
+
+  const handleSaveCustomMetric = (name: string, expression: string) => {
+    // Check if a metric with this name already exists
+    const existingMetricIndex = customMetrics.findIndex(
+      (metric) => metric.name === name
+    );
+
+    // Create a new custom metric
+    const newCustomMetric: CustomMetric = {
+      name,
+      expression,
+      isCustom: true,
+    };
+
+    if (existingMetricIndex >= 0) {
+      // Update existing metric
+      const updatedMetrics = [...customMetrics];
+      updatedMetrics[existingMetricIndex] = newCustomMetric;
+      setCustomMetrics(updatedMetrics);
+    } else {
+      // Add new metric
+      setCustomMetrics([...customMetrics, newCustomMetric]);
+    }
+  };
+
+  const handleDeleteCustomMetric = (name: string) => {
+    setCustomMetrics(customMetrics.filter((metric) => metric.name !== name));
   };
 
   return (
@@ -46,7 +99,10 @@ function App() {
         <ExpressionBuilder
           initialValue=""
           metrics={metrics}
+          customMetrics={customMetrics}
           onChange={handleExpressionChange}
+          onSaveCustomMetric={handleSaveCustomMetric}
+          onDeleteCustomMetric={handleDeleteCustomMetric}
         />
 
         <div className="mt-8 bg-white rounded-lg shadow-lg p-6">
